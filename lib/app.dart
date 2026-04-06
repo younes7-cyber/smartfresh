@@ -37,7 +37,7 @@ class SmartFreshApp extends ConsumerWidget {
       darkTheme: AppTheme.darkTheme,
       themeMode: themeMode,
       builder: (context, child) {
-        final textDirection = locale.languageCode == 'ar' ? TextDirection.RTL : TextDirection.LTR;
+        final textDirection = locale.languageCode == 'ar' ? TextDirection.rtl : TextDirection.ltr;
         return Directionality(
           textDirection: textDirection,
           child: child ?? const SizedBox.shrink(),
