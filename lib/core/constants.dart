@@ -31,5 +31,5 @@ class AppDimensions {
 
 class AppStrings {
   static const appName = 'SmartFresh';
-  static const logoAsset = 'assets/logo.png';
+  static const logoAsset = 'assets/logo.jpg';
 }

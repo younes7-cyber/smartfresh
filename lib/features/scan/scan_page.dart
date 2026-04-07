@@ -9,7 +9,6 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 
-import '../../core/constants.dart';
 import '../../core/state/app_providers.dart';
 import '../../shared/models/product_model.dart';
 import '../../shared/widgets/app_button.dart';

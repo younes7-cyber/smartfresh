@@ -7,7 +7,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:image_gallery_saver/image_gallery_saver.dart';
+//import 'package:image_gallery_saver/image_gallery_saver.dart';
 import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -107,7 +107,7 @@ class _BarcodeGeneratorPageState extends State<BarcodeGeneratorPage> {
       final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
       final pngBytes = byteData!.buffer.asUint8List();
 
-      final result = await ImageGallerySaver.saveImage(
+     /* final result = await ImageGallerySaver.saveImage(
         pngBytes,
         quality: 100,
         name: 'SmartFresh_${_uidController.text}_ticket',
@@ -116,7 +116,7 @@ class _BarcodeGeneratorPageState extends State<BarcodeGeneratorPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(result['isSuccess'] == true ? '✅ Ticket saved to gallery!' : '❌ Failed to save ticket.')),
-      );
+      );*/
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('❌ Failed to save ticket.')));

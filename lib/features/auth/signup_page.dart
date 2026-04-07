@@ -37,12 +37,12 @@ class _SignupPageState extends State<SignupPage> {
   }
 
   Future<void> _submit() async {
-    FocusScope.of(context).unfocus();
+  /*  FocusScope.of(context).unfocus();
     if (!(_formKey.currentState?.validate() ?? false)) return;
     setState(() => _loading = true);
     await Future<void>.delayed(AppDurations.long);
     if (!mounted) return;
-    setState(() => _loading = false);
+    setState(() => _loading = false);*/
     Navigator.of(context).pushReplacementNamed(AppRoutes.verifyEmail);
   }
 

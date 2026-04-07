@@ -24,7 +24,7 @@ class AppTheme {
         titleLarge: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w600),
       ),
       appBarTheme: const AppBarTheme(centerTitle: true),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: scheme.surface,
         elevation: 2,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
@@ -63,7 +63,7 @@ class AppTheme {
         titleLarge: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w600),
       ),
       appBarTheme: const AppBarTheme(centerTitle: true),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: scheme.surface,
         elevation: 2,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
