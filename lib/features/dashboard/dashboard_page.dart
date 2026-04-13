@@ -2,17 +2,22 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:smartfresh/service/firestore%20provider.dart';
 
-import '../../core/state/app_providers.dart';
 import '../../core/theme/color_palette.dart';
-import '../../mock/mock_data.dart';
 
 class DashboardPage extends ConsumerWidget {
   const DashboardPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final stats = ref.watch(mockProductStatsProvider) as List<MonthlyStat>;
+    // All are StreamProviders — they carry loading/error/data state
+    final totalAsync = ref.watch(totalProductsProvider);
+    final freshAsync = ref.watch(freshProductsProvider);
+    final expiringSoonAsync = ref.watch(expiringSoonCountProvider);
+    final expiredAsync = ref.watch(expiredCountProvider);
+    final statsAsync = ref.watch(annualStatsProvider);
+
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -20,145 +25,468 @@ class DashboardPage extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Container(
-                    width: 14,
-                    height: 14,
-                    decoration: const BoxDecoration(color: ColorPalette.success, shape: BoxShape.circle),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text('${'fridgeStatus'.tr()}: ${'optimal'.tr()} | Temp: 4°C | ${'doorClosed'.tr()}'),
-                  ),
-                ],
+          // ── Fridge status banner ──
+          _FridgeStatusBanner(),
+          const SizedBox(height: 16),
+
+          // ── Summary cards grid ──
+          LayoutBuilder(builder: (context, constraints) {
+            final columns = constraints.maxWidth >= 900 ? 4 : 2;
+            final cards = [
+              _StatCard(
+                title: 'totalProducts'.tr(),
+                asyncValue: totalAsync,
+                icon: Icons.inventory_2_rounded,
+                color: ColorPalette.primary,
+                subtitle: 'Z1 + Z2 + Z3',
+              ),
+              _StatCard(
+                title: 'freshProducts'.tr(),
+                asyncValue: freshAsync,
+                icon: Icons.eco_rounded,
+                color: ColorPalette.success,
+                subtitle: 'Zone 1 + 2',
+              ),
+              _StatCard(
+                title: 'expiringSoon'.tr(),
+                asyncValue: expiringSoonAsync,
+                icon: Icons.hourglass_bottom_rounded,
+                color: ColorPalette.warning,
+                subtitle: 'Zone 3',
+              ),
+              _StatCard(
+                title: 'expired'.tr(),
+                asyncValue: expiredAsync,
+                icon: Icons.dangerous_rounded,
+                color: ColorPalette.danger,
+                subtitle: 'Périmi',
+              ),
+            ];
+
+            return GridView.builder(
+              itemCount: cards.length,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: columns,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                childAspectRatio: 1.4,
+              ),
+              itemBuilder: (_, i) => cards[i],
+            );
+          }),
+
+          const SizedBox(height: 24),
+
+          // ── Annual chart header ──
+          Row(
+            children: [
+              Text(
+                'annualStatistics'.tr(),
+                style: theme.textTheme.titleLarge
+                    ?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              const Spacer(),
+              Text(
+                DateTime.now().year.toString(),
+                style: theme.textTheme.bodyMedium
+                    ?.copyWith(color: ColorPalette.secondary),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // ── Legend ──
+          _ChartLegend(),
+          const SizedBox(height: 12),
+
+          // ── Area chart — reads from annualStatsProvider (StreamProvider) ──
+          statsAsync.when(
+            loading: () => const SizedBox(
+              height: 220,
+              child: Center(child: CircularProgressIndicator()),
+            ),
+            error: (e, _) => SizedBox(
+              height: 80,
+              child: Center(
+                child: Text(
+                  'loadError'.tr(),
+                  style: const TextStyle(color: ColorPalette.danger),
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 16),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final columns = constraints.maxWidth >= 900 ? 4 : 2;
-              final cards = [
-                _SummaryCard(title: 'totalProducts'.tr(), value: 48, icon: Icons.inventory_2_rounded, color: ColorPalette.primary),
-                _SummaryCard(title: 'freshProducts'.tr(), value: 30, icon: Icons.eco_rounded, color: ColorPalette.success),
-                _SummaryCard(title: 'expiringSoon'.tr(), value: 12, icon: Icons.hourglass_bottom_rounded, color: ColorPalette.warning),
-                _SummaryCard(title: 'expired'.tr(), value: 6, icon: Icons.dangerous_rounded, color: ColorPalette.danger),
-              ];
+            data: (stats) {
+              // Find max value for dynamic Y axis
+              double maxY = 5;
+              for (final s in stats) {
+                maxY = [maxY, s.zone1, s.zone2, s.zone3, s.pirimi]
+                    .reduce((a, b) => a > b ? a : b);
+              }
+              maxY = (maxY + 2).ceilToDouble();
 
-              return GridView.builder(
-                itemCount: cards.length,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: columns,
-                  mainAxisSpacing: 12,
-                  crossAxisSpacing: 12,
-                  childAspectRatio: 1.6,
+              return Card(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 20, 16, 12),
+                  child: AspectRatio(
+                    aspectRatio: 1.5,
+                    child: LineChart(
+                      LineChartData(
+                        minY: 0,
+                        maxY: maxY,
+                        gridData: FlGridData(
+                          show: true,
+                          drawVerticalLine: false,
+                          getDrawingHorizontalLine: (v) => FlLine(
+                            color: theme.colorScheme.outlineVariant
+                                .withValues(alpha: 0.4),
+                            strokeWidth: 1,
+                          ),
+                        ),
+                        borderData: FlBorderData(show: false),
+                        titlesData: FlTitlesData(
+                          topTitles: const AxisTitles(
+                              sideTitles: SideTitles(showTitles: false)),
+                          rightTitles: const AxisTitles(
+                              sideTitles: SideTitles(showTitles: false)),
+                          leftTitles: AxisTitles(
+                            sideTitles: SideTitles(
+                              showTitles: true,
+                              reservedSize: 28,
+                              getTitlesWidget: (v, _) => Text(
+                                v.toInt().toString(),
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                    fontSize: 10,
+                                    color: ColorPalette.secondary),
+                              ),
+                            ),
+                          ),
+                          bottomTitles: AxisTitles(
+                            sideTitles: SideTitles(
+                              showTitles: true,
+                              reservedSize: 28,
+                              interval: 1,
+                              getTitlesWidget: (value, _) {
+                                final i = value.toInt();
+                                if (i < 0 || i >= stats.length) {
+                                  return const SizedBox.shrink();
+                                }
+                                return Padding(
+                                  padding: const EdgeInsets.only(top: 6),
+                                  child: Text(
+                                    stats[i].month,
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                        fontSize: 10,
+                                        color: ColorPalette.secondary),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                        lineTouchData: LineTouchData(
+                          touchTooltipData: LineTouchTooltipData(
+                            getTooltipItems: (spots) => spots.map((s) {
+                              const colors = [
+                                ColorPalette.success,
+                                ColorPalette.primary,
+                                ColorPalette.warning,
+                                ColorPalette.danger,
+                              ];
+                              const lbl = ['Z1', 'Z2', 'Z3', 'Pir'];
+                              final i = s.barIndex;
+                              return LineTooltipItem(
+                                '${lbl[i]}: ${s.y.toInt()}',
+                                TextStyle(
+                                    color: colors[i],
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 12),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                        lineBarsData: [
+                          _areaLine(
+                              stats.map((e) => e.zone1).toList(),
+                              ColorPalette.success),
+                          _areaLine(
+                              stats.map((e) => e.zone2).toList(),
+                              ColorPalette.primary),
+                          _areaLine(
+                              stats.map((e) => e.zone3).toList(),
+                              ColorPalette.warning),
+                          _areaLine(
+                              stats.map((e) => e.pirimi).toList(),
+                              ColorPalette.danger),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
-                itemBuilder: (context, index) => cards[index],
               );
             },
           ),
-          const SizedBox(height: 24),
-          Text('annualStatistics'.tr(), style: theme.textTheme.titleLarge),
-          const SizedBox(height: 12),
-          Card(
-            child: AspectRatio(
-              aspectRatio: 1.5,
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: LineChart(
-                  LineChartData(
-                    minY: 0,
-                    maxY: 60,
-                    gridData: const FlGridData(show: true),
-                    titlesData: FlTitlesData(
-                      topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                      rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                      bottomTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          reservedSize: 30,
-                          interval: 1,
-                          getTitlesWidget: (value, meta) {
-                            final index = value.toInt();
-                            if (index < 0 || index >= stats.length) return const SizedBox.shrink();
-                            return Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: Text(stats[index].month, style: theme.textTheme.bodySmall),
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                    lineBarsData: [
-                      _line(stats.map((e) => e.fresh).toList(), ColorPalette.success),
-                      _line(stats.map((e) => e.expiringSoon).toList(), ColorPalette.warning),
-                      _line(stats.map((e) => e.expired).toList(), ColorPalette.danger),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
+
+          const SizedBox(height: 16),
         ],
       ),
     );
   }
 
-  LineChartBarData _line(List<double> values, Color color) {
+  LineChartBarData _areaLine(List<double> values, Color color) {
     return LineChartBarData(
-      spots: [for (var i = 0; i < values.length; i++) FlSpot(i.toDouble(), values[i])],
+      spots: [
+        for (var i = 0; i < values.length; i++)
+          FlSpot(i.toDouble(), values[i])
+      ],
       isCurved: true,
+      curveSmoothness: 0.35,
       color: color,
-      barWidth: 3,
-      belowBarData: BarAreaData(show: true, color: color.withValues(alpha: 0.14)),
-      dotData: const FlDotData(show: false),
+      barWidth: 2.5,
+      belowBarData: BarAreaData(
+        show: true,
+        color: color.withValues(alpha: 0.12),
+      ),
+      dotData: FlDotData(
+        show: true,
+        getDotPainter: (spot, _, __, ___) => FlDotCirclePainter(
+          radius: spot.y > 0 ? 3 : 0,
+          color: color,
+          strokeWidth: 0,
+        ),
+      ),
     );
   }
 }
 
-class _SummaryCard extends StatelessWidget {
-  const _SummaryCard({required this.title, required this.value, required this.icon, required this.color});
+// ── Stat Card — reads AsyncValue<int> from StreamProvider ────────────────────
+
+class _StatCard extends StatelessWidget {
+  const _StatCard({
+    required this.title,
+    required this.asyncValue,
+    required this.icon,
+    required this.color,
+    required this.subtitle,
+  });
 
   final String title;
-  final int value;
+  final AsyncValue<int> asyncValue;
   final IconData icon;
   final Color color;
+  final String subtitle;
 
   @override
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(14)),
-              child: Icon(icon, color: color),
+            Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: color, size: 20),
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    subtitle,
+                    style: TextStyle(
+                        color: color,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
             ),
-            TweenAnimationBuilder<double>(
-              tween: Tween(begin: 0, end: value.toDouble()),
-              duration: const Duration(milliseconds: 800),
-              builder: (context, animatedValue, child) {
-                return Text(
-                  animatedValue.toInt().toString(),
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700),
-                );
-              },
+
+            // Count — animated when value arrives from stream
+            asyncValue.when(
+              loading: () => SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  color: color,
+                ),
+              ),
+              error: (_, __) => Text(
+                '—',
+                style: Theme.of(context)
+                    .textTheme
+                    .headlineMedium
+                    ?.copyWith(fontWeight: FontWeight.w800, color: color),
+              ),
+              data: (value) => TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0, end: value.toDouble()),
+                duration: const Duration(milliseconds: 700),
+                builder: (context, v, _) => Text(
+                  v.toInt().toString(),
+                  style: Theme.of(context)
+                      .textTheme
+                      .headlineMedium
+                      ?.copyWith(
+                          fontWeight: FontWeight.w800, color: color),
+                ),
+              ),
             ),
-            Text(title, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.secondary)),
+
+            Text(
+              title,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: ColorPalette.secondary,
+                    fontWeight: FontWeight.w500,
+                  ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
           ],
         ),
       ),
+    );
+  }
+}
+
+// ── Fridge Status Banner ──────────────────────────────────────────────────────
+
+class _FridgeStatusBanner extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            _PulsingDot(color: ColorPalette.success),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                '${'fridgeStatus'.tr()}: ${'optimal'.tr()}  •  4°C  •  ${'doorClosed'.tr()}',
+                style: const TextStyle(fontWeight: FontWeight.w500),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: ColorPalette.success.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: const Text(
+                'OPTIMAL',
+                style: TextStyle(
+                  color: ColorPalette.success,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 11,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PulsingDot extends StatefulWidget {
+  const _PulsingDot({required this.color});
+  final Color color;
+
+  @override
+  State<_PulsingDot> createState() => _PulsingDotState();
+}
+
+class _PulsingDotState extends State<_PulsingDot>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  )..repeat(reverse: true);
+  late final Animation<double> _anim =
+      Tween<double>(begin: 0.4, end: 1.0).animate(_ctrl);
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _anim,
+      child: Container(
+        width: 12,
+        height: 12,
+        decoration: BoxDecoration(
+          color: widget.color,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: widget.color.withValues(alpha: 0.5),
+              blurRadius: 6,
+              spreadRadius: 1,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Chart Legend ──────────────────────────────────────────────────────────────
+
+class _ChartLegend extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    const items = [
+      (label: 'Zone 1', color: ColorPalette.success),
+      (label: 'Zone 2', color: ColorPalette.primary),
+      (label: 'Zone 3', color: ColorPalette.warning),
+      (label: 'Périmi', color: ColorPalette.danger),
+    ];
+    return Wrap(
+      spacing: 16,
+      runSpacing: 6,
+      children: items
+          .map((item) => Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: item.color,
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    item.label,
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ))
+          .toList(),
     );
   }
 }

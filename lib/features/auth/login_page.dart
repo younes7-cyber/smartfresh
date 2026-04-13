@@ -5,7 +5,6 @@ import 'package:smartfresh/features/auth/auth_service.dart';
 
 import '../../core/constants.dart';
 import '../../core/theme/color_palette.dart';
-import '../../shared/widgets/app_button.dart';
 import '../../shared/widgets/app_text_field.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
@@ -224,10 +223,12 @@ class _LoginPageState extends ConsumerState<LoginPage>
                                 label: 'email'.tr(),
                                 keyboardType: TextInputType.emailAddress,
                                 validator: (v) {
-                                  if (v == null || v.isEmpty)
+                                  if (v == null || v.isEmpty) {
                                     return 'requiredField'.tr();
-                                  if (!v.contains('@'))
+                                  }
+                                  if (!v.contains('@')) {
                                     return 'invalidEmail'.tr();
+                                  }
                                   return null;
                                 },
                               ),
@@ -239,8 +240,9 @@ class _LoginPageState extends ConsumerState<LoginPage>
                                 label: 'password'.tr(),
                                 obscureText: !_showPassword,
                                 validator: (v) {
-                                  if (v == null || v.length < 6)
+                                  if (v == null || v.length < 6) {
                                     return 'passwordMin'.tr();
+                                  }
                                   return null;
                                 },
                                 suffixIcon: IconButton(

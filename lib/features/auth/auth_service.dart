@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Result wrapper for auth operations
 class AuthResult {
@@ -20,6 +21,9 @@ class AuthService {
 
   final _auth = FirebaseAuth.instance;
   final _firestore = FirebaseFirestore.instance;
+
+  // SharedPreferences key for persisting auth state
+  static const _kIsLoggedIn = 'is_logged_in';
 
   // ──────────────────────── Streams ────────────────────────
 
@@ -62,6 +66,14 @@ class AuthService {
         debugPrint('Firestore write error during signup: $firestoreError');
       }
 
+      // 4️⃣ Save login state in SharedPreferences
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool(_kIsLoggedIn, true);
+      } catch (e) {
+        debugPrint('SharedPreferences write error during signup: $e');
+      }
+
       // 4️⃣ Send verification email
       // FIX Bug 1: small delay avoids Firebase throttling right after account creation,
       // and we catch this error independently so it never blocks the signup flow.
@@ -95,6 +107,15 @@ class AuthService {
         email: email.trim(),
         password: password,
       );
+
+      // Save login state in SharedPreferences
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool(_kIsLoggedIn, true);
+      } catch (e) {
+        debugPrint('SharedPreferences write error during signIn: $e');
+      }
+
       return AuthResult.success(credential.user);
     } on FirebaseAuthException catch (e) {
       return AuthResult.failure(_mapFirebaseError(e));
@@ -179,6 +200,10 @@ class AuthService {
 
   Future<void> signOut() async {
     try {
+      // Clear login state from SharedPreferences BEFORE signing out
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_kIsLoggedIn);
+
       await _auth.signOut();
     } catch (e) {
       debugPrint('Sign out error: $e');

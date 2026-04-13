@@ -251,10 +251,12 @@ class _SignupPageState extends State<SignupPage>
                                 controller: _usernameController,
                                 label: 'username'.tr(),
                                 validator: (v) {
-                                  if (v == null || v.trim().length < 3)
+                                  if (v == null || v.trim().length < 3) {
                                     return 'usernameMin'.tr();
-                                  if (v.contains(' '))
+                                  }
+                                  if (v.contains(' ')) {
                                     return 'usernameNoSpaces'.tr();
+                                  }
                                   return null;
                                 },
                               ),
@@ -266,10 +268,12 @@ class _SignupPageState extends State<SignupPage>
                                 label: 'email'.tr(),
                                 keyboardType: TextInputType.emailAddress,
                                 validator: (v) {
-                                  if (v == null || v.isEmpty)
+                                  if (v == null || v.isEmpty) {
                                     return 'requiredField'.tr();
-                                  if (!v.contains('@'))
+                                  }
+                                  if (!v.contains('@')) {
                                     return 'invalidEmail'.tr();
+                                  }
                                   return null;
                                 },
                               ),
@@ -282,8 +286,9 @@ class _SignupPageState extends State<SignupPage>
                                 obscureText: !_showPassword,
                                 onChanged: (_) => setState(() {}),
                                 validator: (v) {
-                                  if (v == null || v.length < 6)
+                                  if (v == null || v.length < 6) {
                                     return 'passwordMin'.tr();
+                                  }
                                   return null;
                                 },
                                 suffixIcon: IconButton(

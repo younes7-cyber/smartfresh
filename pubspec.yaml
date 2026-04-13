@@ -56,6 +56,7 @@ dependencies:
   firebase_auth: ^6.3.0
   cloud_firestore: ^6.2.0
   firebase_core: ^4.6.0
+  gal: ^2.3.2
 
 dev_dependencies:
   flutter_test:
@@ -82,6 +83,7 @@ flutter:
   assets:
     - assets/translations/
     - assets/logo.jpg
+    - assets/smartfresh-69244-f8d65ec1b9dc.json
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
 

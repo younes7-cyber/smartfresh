@@ -2,7 +2,6 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:smartfresh/features/auth/auth_service.dart';
 
-import '../../core/constants.dart';
 import '../../core/theme/color_palette.dart';
 import '../../shared/widgets/app_text_field.dart';
 

@@ -32,7 +32,7 @@ migrate_working_dir/
 .pub/
 /build/
 /coverage/
-
+/assets/smartfresh-69244-f8d65ec1b9dc.json
 # Symbolication related
 app.*.symbols
 
