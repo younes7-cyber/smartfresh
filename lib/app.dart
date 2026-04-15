@@ -2,6 +2,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smartfresh/features/auth/auth_guard.dart';
+
 import 'core/constants.dart';
 import 'core/navigation/page_transitions.dart';
 import 'core/state/app_providers.dart';
@@ -31,58 +32,45 @@ class SmartFreshApp extends ConsumerWidget {
       title: 'SmartFresh',
       debugShowCheckedModeBanner: false,
 
-      // 🌍 Localization
       locale: locale,
       supportedLocales: context.supportedLocales,
       localizationsDelegates: context.localizationDelegates,
 
-      // 🎨 Theme
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: themeMode,
 
-      // 🚀 Navigation with Auth Guards
       onGenerateRoute: (settings) {
         late final Widget page;
 
         switch (settings.name) {
-          // ── Public routes (no auth required) ──
+          // ── Public ──
           case AppRoutes.splash:
-            page = const SplashScreen();
-
+            page = const SplashScreen();   // handles auto-login redirect
           case AppRoutes.login:
             page = const LoginPage();
-
           case AppRoutes.signup:
             page = const SignupPage();
-
           case AppRoutes.forgotPassword:
             page = const ForgotPasswordPage();
 
-          // ── Requires auth but NOT verification (for verified check inside) ──
-          // AuthRequiredGuard: user must be signed in; if already verified → main
+          // ── Auth required, verification handled by page ──
           case AppRoutes.verifyEmail:
             page = const AuthRequiredGuard(child: EmailVerificationPage());
 
-          // ── Requires full auth + email verification ──
+          // ── Auth + email verified required ──
           case AppRoutes.main:
             page = const AuthGuard(child: MainNavigation());
-
           case AppRoutes.dashboard:
             page = const AuthGuard(child: DashboardPage());
-
           case AppRoutes.notifications:
             page = const AuthGuard(child: NotificationsPage());
-
           case AppRoutes.scan:
             page = const AuthGuard(child: ScanPage());
-
           case AppRoutes.zones:
             page = const AuthGuard(child: ZonesPage());
-
           case AppRoutes.settings:
             page = const AuthGuard(child: SettingsPage());
-
           case AppRoutes.barcodeGenerator:
             page = const AuthGuard(child: BarcodeGeneratorPage());
 

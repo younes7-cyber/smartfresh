@@ -1,12 +1,14 @@
 import 'dart:math' as math;
 
 import 'package:easy_localization/easy_localization.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants.dart';
 import '../../core/state/app_providers.dart';
 import '../../core/theme/color_palette.dart';
+import '../auth/auth_service.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -61,7 +63,32 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
     _logoController.forward().then((_) {
       _contentController.forward();
+      // Check auto-login AFTER animations play — redirect silently if logged in
+      _checkAutoLogin();
     });
+  }
+
+  Future<void> _checkAutoLogin() async {
+    final isLoggedIn = await AuthService.isAutoLoginEnabled();
+    if (!isLoggedIn || !mounted) return;
+
+    // Firebase Auth session should still be active (it persists automatically).
+    // Verify the session is valid before redirecting.
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      // Session expired — clear stale flag and show login
+      return;
+    }
+
+    if (!mounted) return;
+
+    if (user.emailVerified) {
+      // Fully verified → go straight to main
+      Navigator.of(context).pushReplacementNamed(AppRoutes.main);
+    } else {
+      // Signed in but not verified → go to verification page
+      Navigator.of(context).pushReplacementNamed(AppRoutes.verifyEmail);
+    }
   }
 
   @override
@@ -602,8 +629,7 @@ class _ParticlePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..color = Colors.white.withValues(alpha: 0.25);
     for (final p in _particles) {
-      final y =
-          (p.y + progress * p.speed + p.phase) % 1.0;
+      final y = (p.y + progress * p.speed + p.phase) % 1.0;
       final x = p.x +
           math.sin((progress * 2 * math.pi) + p.phase * 10) * 0.03;
       canvas.drawCircle(

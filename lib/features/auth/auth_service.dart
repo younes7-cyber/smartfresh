@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -22,18 +23,48 @@ class AuthService {
   final _auth = FirebaseAuth.instance;
   final _firestore = FirebaseFirestore.instance;
 
-  // SharedPreferences key for persisting auth state
-  static const _kIsLoggedIn = 'is_logged_in';
+  // ── SharedPreferences key ─────────────────────────────────────────────────
+  //
+  // This flag is written ONCE after successful signup/login.
+  // It is ONLY cleared when the user explicitly presses "Logout".
+  // It is NEVER re-written on subsequent app launches.
+  // Purpose: let SplashScreen know whether to skip the login page.
 
-  // ──────────────────────── Streams ────────────────────────
+  static const _kIsLoggedIn = 'smartfresh.is_logged_in';
+
+  // ── Streams ───────────────────────────────────────────────────────────────
 
   Stream<User?> get authStateChanges => _auth.authStateChanges();
-
   User? get currentUser => _auth.currentUser;
-
   bool get isEmailVerified => _auth.currentUser?.emailVerified ?? false;
 
-  // ──────────────────────── Sign Up ────────────────────────
+  // ── Auto-login helpers ────────────────────────────────────────────────────
+
+  /// Called by SplashScreen to decide whether to redirect to /main or /login.
+  static Future<bool> isAutoLoginEnabled() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool(_kIsLoggedIn) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // Write flag only when value changes to avoid unnecessary writes
+  static Future<void> _persistLogin(bool loggedIn) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (loggedIn) {
+        await prefs.setBool(_kIsLoggedIn, true);
+      } else {
+        await prefs.remove(_kIsLoggedIn);
+      }
+    } catch (e) {
+      debugPrint('SharedPreferences error: $e');
+    }
+  }
+
+  // ── Sign Up ───────────────────────────────────────────────────────────────
 
   Future<AuthResult> signUp({
     required String email,
@@ -41,18 +72,29 @@ class AuthService {
     required String username,
   }) async {
     try {
-      // 1️⃣ Create Firebase Auth user
+      // 1. Create Firebase Auth account
       final credential = await _auth.createUserWithEmailAndPassword(
         email: email.trim(),
         password: password,
       );
-
       final user = credential.user!;
 
-      // 2️⃣ Update display name in Auth profile
+      // 2. Set display name
       await user.updateDisplayName(username.trim());
 
-      // 3️⃣ Save user document in Firestore → collection "users"
+      // 3. Get FCM token (non-blocking — don't fail signup if this fails)
+      String? fcmToken;
+      try {
+        fcmToken = await FirebaseMessaging.instance.getToken();
+      } catch (e) {
+        debugPrint('FCM token error (non-blocking): $e');
+      }
+
+      // 4. Save user document in Firestore
+      //    Fields:
+      //      - uid, username, email, createdAt, emailVerified
+      //      - topic: 'alerts'   → marks this user as subscribed to alert topic
+      //      - fcmToken          → used for targeted direct push (optional)
       try {
         await _firestore.collection('users').doc(user.uid).set({
           'uid': user.uid,
@@ -60,35 +102,27 @@ class AuthService {
           'email': email.trim().toLowerCase(),
           'createdAt': FieldValue.serverTimestamp(),
           'emailVerified': false,
+          'topic': 'alerts',
+          if (fcmToken != null) 'fcmToken': fcmToken,
         });
-      } catch (firestoreError) {
-        // Firestore failure must not block auth — log and continue
-        debugPrint('Firestore write error during signup: $firestoreError');
-      }
-
-      // 4️⃣ Save login state in SharedPreferences
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool(_kIsLoggedIn, true);
       } catch (e) {
-        debugPrint('SharedPreferences write error during signup: $e');
+        debugPrint('Firestore write error during signup (non-blocking): $e');
       }
 
-      // 4️⃣ Send verification email
-      // FIX Bug 1: small delay avoids Firebase throttling right after account creation,
-      // and we catch this error independently so it never blocks the signup flow.
+      // 5. Persist auto-login flag ONCE (never re-written until logout)
+      await _persistLogin(true);
+
+      // 6. Send verification email (delay avoids Firebase throttling)
       try {
         await Future.delayed(const Duration(milliseconds: 500));
         await user.sendEmailVerification();
       } on FirebaseAuthException catch (e) {
-        // too-many-requests or other non-critical errors: log only, do not fail
-        debugPrint('sendEmailVerification error (non-blocking): ${e.code} - ${e.message}');
+        debugPrint('sendEmailVerification (non-blocking): ${e.code}');
       } catch (e) {
         debugPrint('sendEmailVerification unexpected error: $e');
       }
 
       return AuthResult.success(user);
-
     } on FirebaseAuthException catch (e) {
       return AuthResult.failure(_mapFirebaseError(e));
     } catch (e) {
@@ -96,7 +130,7 @@ class AuthService {
     }
   }
 
-  // ──────────────────────── Sign In ────────────────────────
+  // ── Sign In ───────────────────────────────────────────────────────────────
 
   Future<AuthResult> signIn({
     required String email,
@@ -107,16 +141,16 @@ class AuthService {
         email: email.trim(),
         password: password,
       );
+      final user = credential.user!;
 
-      // Save login state in SharedPreferences
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool(_kIsLoggedIn, true);
-      } catch (e) {
-        debugPrint('SharedPreferences write error during signIn: $e');
-      }
+      // Persist auto-login flag ONCE on first successful login
+      // (If already set, SharedPreferences ignores duplicate writes)
+      await _persistLogin(true);
 
-      return AuthResult.success(credential.user);
+      // Update FCM token in Firestore (token can rotate after re-install)
+      _refreshFcmToken(user.uid);
+
+      return AuthResult.success(user);
     } on FirebaseAuthException catch (e) {
       return AuthResult.failure(_mapFirebaseError(e));
     } catch (e) {
@@ -124,7 +158,7 @@ class AuthService {
     }
   }
 
-  // ──────────────────────── Email Verification ────────────────────────
+  // ── Email Verification ────────────────────────────────────────────────────
 
   Future<AuthResult> sendVerificationEmail() async {
     try {
@@ -137,19 +171,14 @@ class AuthService {
     }
   }
 
-  /// FIX Bug 2: After reload(), always re-fetch currentUser from FirebaseAuth.instance
-  /// because the old User object reference is stale and still returns emailVerified=false.
+  /// Reload user and check emailVerified.
+  /// CRITICAL: re-fetches currentUser AFTER reload to avoid stale object bug.
   Future<bool> reloadAndCheckVerification() async {
     try {
-      // Step 1: Force reload from Firebase servers
       await _auth.currentUser?.reload();
-
-      // Step 2: CRITICAL — re-fetch the user AFTER reload to get the fresh state.
-      // Do NOT use the old 'currentUser' reference captured before reload().
-      final freshUser = _auth.currentUser;
+      final freshUser = _auth.currentUser; // new reference after reload
       final verified = freshUser?.emailVerified ?? false;
 
-      // Step 3: If verified, update Firestore document
       if (verified && freshUser != null) {
         try {
           await _firestore.collection('users').doc(freshUser.uid).update({
@@ -157,7 +186,6 @@ class AuthService {
             'verifiedAt': FieldValue.serverTimestamp(),
           });
         } catch (e) {
-          // Non-blocking — user is still verified even if Firestore update fails
           debugPrint('Firestore emailVerified update error: $e');
         }
       }
@@ -169,7 +197,7 @@ class AuthService {
     }
   }
 
-  // ──────────────────────── Fetch User Profile ─────────────────────────
+  // ── Fetch user profile from Firestore ─────────────────────────────────────
 
   Future<Map<String, dynamic>?> fetchUserProfile() async {
     try {
@@ -183,7 +211,7 @@ class AuthService {
     }
   }
 
-  // ──────────────────────── Password Reset ────────────────────────
+  // ── Password Reset ────────────────────────────────────────────────────────
 
   Future<AuthResult> sendPasswordResetEmail(String email) async {
     try {
@@ -196,21 +224,34 @@ class AuthService {
     }
   }
 
-  // ──────────────────────── Sign Out ────────────────────────
+  // ── Sign Out ──────────────────────────────────────────────────────────────
 
   Future<void> signOut() async {
     try {
-      // Clear login state from SharedPreferences BEFORE signing out
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_kIsLoggedIn);
-
+      // ✅ Clear auto-login flag on explicit logout
+      // Next app launch → SplashScreen redirects to /login
+      await _persistLogin(false);
       await _auth.signOut();
     } catch (e) {
       debugPrint('Sign out error: $e');
     }
   }
 
-  // ──────────────────────── Error Mapping ────────────────────────
+  // ── FCM token refresh (non-blocking) ─────────────────────────────────────
+
+  void _refreshFcmToken(String uid) {
+    FirebaseMessaging.instance.getToken().then((token) {
+      if (token != null) {
+        _firestore.collection('users').doc(uid).update({
+          'fcmToken': token,
+          'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),
+        }).catchError((e) => debugPrint('FCM token update error: $e'));
+      }
+    // ignore: invalid_return_type_for_catch_error
+    }).catchError((e) => debugPrint('getToken error: $e'));
+  }
+
+  // ── Firebase error mapping ────────────────────────────────────────────────
 
   String _mapFirebaseError(FirebaseAuthException e) {
     switch (e.code) {

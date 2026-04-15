@@ -12,10 +12,11 @@ android {
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
-    }
+compileOptions {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+    isCoreLibraryDesugaringEnabled = true
+}
 
     kotlinOptions {
         jvmTarget = JavaVersion.VERSION_11.toString()
@@ -43,6 +44,7 @@ flutter {
 dependencies {
     // Importation de la Firebase BoM (Bill of Materials)
     implementation(platform("com.google.firebase:firebase-bom:34.11.0"))
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 
     // SDK Firebase Analytics
     implementation("com.google.firebase:firebase-analytics")
