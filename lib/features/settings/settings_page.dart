@@ -88,7 +88,7 @@ class SettingsPage extends ConsumerWidget {
               title: Text('theme'.tr()),
               subtitle: Text(themeMode == ThemeMode.dark ? 'Dark 🌙' : 'Light ☀️'),
               value: themeMode == ThemeMode.dark,
-              activeColor: ColorPalette.primary,
+              activeThumbColor: ColorPalette.primary,
               onChanged: (value) => ref
                   .read(themeModeProvider.notifier)
                   .setThemeMode(value ? ThemeMode.dark : ThemeMode.light),
@@ -337,6 +337,7 @@ class _LocaleTile extends StatelessWidget {
       onTap: () async {
         final locale = Locale(code);
         await ref.read(localeProvider.notifier).setLocale(locale);
+        // ignore: use_build_context_synchronously
         await context.setLocale(locale);
         if (context.mounted) Navigator.pop(sheetContext);
       },

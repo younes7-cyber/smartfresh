@@ -1,7 +1,6 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
-// ── Firestore path constants ──────────────────────────────────────────────────
+// ── Database path constants ──────────────────────────────────────────────────
 class FridgePaths {
   static const fridgeDoc = 'frigo/TBNp1Y68mMV9nODEw6Kj';
   static const zone1 = '$fridgeDoc/zone1';
@@ -26,7 +25,7 @@ class ProductModel {
     this.icon = Icons.inventory_2_rounded,
   });
 
-  final String id;        // Firestore document ID
+  final String id;        // Realtime Database key/ID
   final String name;
   final String uid;       // the 20-char alphanumeric UID encoded in the barcode
   final DateTime expired;
@@ -49,19 +48,30 @@ class ProductModel {
     return ProductStatus.fresh;
   }
 
-  // ── Firestore → ProductModel ──────────────────────────────────────────────
+  // ── Firestore → ProductModel (adapted for Realtime Database) ────────────────
 
   factory ProductModel.fromFirestore(
-    DocumentSnapshot<Map<String, dynamic>> doc,
+    dynamic doc,
     ProductZone zone,
   ) {
-    final data = doc.data() ?? {};
+    // This method now accepts either a Map (from Realtime DB) or legacy format
+    Map<String, dynamic> data;
+    String id;
 
-    // expired can be stored as Timestamp or as a formatted String
+    if (doc is Map) {
+      data = Map<String, dynamic>.from(doc);
+      id = data['uid'] ?? 'unknown';
+    } else {
+      // Fallback for any legacy code
+      data = {};
+      id = 'unknown';
+    }
+
+    // expired can be milliseconds or a formatted String
     DateTime expired;
     final rawExpiry = data['expired'] ?? data['expiry'] ?? data['date'];
-    if (rawExpiry is Timestamp) {
-      expired = rawExpiry.toDate();
+    if (rawExpiry is int) {
+      expired = DateTime.fromMillisecondsSinceEpoch(rawExpiry);
     } else if (rawExpiry is String && rawExpiry.isNotEmpty) {
       // Supports the barcode format: "dd/MM/yyyy/HH/mm/ss"
       // and the standard ISO format
@@ -86,15 +96,72 @@ class ProductModel {
       expired = DateTime.now();
     }
 
-    // createdAt
+    // createdAt - can be milliseconds or null
     DateTime? createdAt;
     final rawCreated = data['createdAt'] ?? data['addedAt'];
-    if (rawCreated is Timestamp) createdAt = rawCreated.toDate();
+    if (rawCreated is int) {
+      createdAt = DateTime.fromMillisecondsSinceEpoch(rawCreated);
+    }
 
     return ProductModel(
-      id: doc.id,
+      id: id,
       name: (data['name'] ?? data['nom'] ?? 'Unknown').toString(),
-      uid: (data['uid'] ?? data['UID'] ?? doc.id).toString(),
+      uid: (data['uid'] ?? data['UID'] ?? id).toString(),
+      expired: expired,
+      zone: zone,
+      status: computeStatus(expired),
+      createdAt: createdAt,
+    );
+  }
+
+  // ── Realtime Database → ProductModel ───────────────────────────────────────
+
+  factory ProductModel.fromRealtimeDb(
+    Map<String, dynamic> data,
+    String id,
+    ProductZone zone,
+  ) {
+    // Parse expired time - can be milliseconds or formatted string
+    DateTime expired;
+    final rawExpiry = data['expired'] ?? data['expiry'] ?? data['date'];
+    if (rawExpiry is int) {
+      // Milliseconds since epoch
+      expired = DateTime.fromMillisecondsSinceEpoch(rawExpiry);
+    } else if (rawExpiry is String && rawExpiry.isNotEmpty) {
+      // Supports the barcode format: "dd/MM/yyyy/HH/mm/ss"
+      // and the standard ISO format
+      try {
+        final parts = rawExpiry.split('/');
+        if (parts.length >= 3) {
+          expired = DateTime(
+            int.parse(parts[2].length > 4 ? parts[2].substring(0, 4) : parts[2]), // year
+            int.parse(parts[1]),   // month
+            int.parse(parts[0]),   // day
+            parts.length > 3 ? int.tryParse(parts[3]) ?? 0 : 0, // hour
+            parts.length > 4 ? int.tryParse(parts[4]) ?? 0 : 0, // minute
+            parts.length > 5 ? int.tryParse(parts[5]) ?? 0 : 0, // second
+          );
+        } else {
+          expired = DateTime.tryParse(rawExpiry) ?? DateTime.now();
+        }
+      } catch (_) {
+        expired = DateTime.now();
+      }
+    } else {
+      expired = DateTime.now();
+    }
+
+    // Parse createdAt - can be milliseconds or null
+    DateTime? createdAt;
+    final rawCreated = data['createdAt'] ?? data['addedAt'];
+    if (rawCreated is int) {
+      createdAt = DateTime.fromMillisecondsSinceEpoch(rawCreated);
+    }
+
+    return ProductModel(
+      id: id,
+      name: (data['name'] ?? data['nom'] ?? 'Unknown').toString(),
+      uid: (data['uid'] ?? data['UID'] ?? id).toString(),
       expired: expired,
       zone: zone,
       status: computeStatus(expired),

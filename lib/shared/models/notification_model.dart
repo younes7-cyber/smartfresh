@@ -16,6 +16,8 @@ class AppNotificationModel {
     required this.description,
     required this.createdAt,
     this.isRead = false,
+    this.priority = 2,
+    this.context,
   });
 
   final String id;
@@ -24,6 +26,25 @@ class AppNotificationModel {
   final String description;
   final DateTime createdAt;
   final bool isRead;
+  final int priority; // 1: red, 2: yellow, 3: green
+  final String? context;
+
+  /// Factory constructor to create from Firebase database data
+  factory AppNotificationModel.fromFirebase({
+    required String id,
+    required Map<String, dynamic> data,
+  }) {
+    return AppNotificationModel(
+      id: id,
+      type: NotificationType.values.first, // Default type
+      title: data['name'] ?? 'Alert',
+      description: data['context'] ?? '',
+      createdAt: DateTime.fromMillisecondsSinceEpoch(data['createdAt'] ?? 0),
+      isRead: data['isRead'] ?? false,
+      priority: data['priority'] ?? 2,
+      context: data['context'],
+    );
+  }
 
   AppNotificationModel copyWith({bool? isRead}) {
     return AppNotificationModel(
@@ -33,35 +54,22 @@ class AppNotificationModel {
       description: description,
       createdAt: createdAt,
       isRead: isRead ?? this.isRead,
+      priority: priority,
+      context: context,
     );
   }
 
+  /// Get color based on priority: 1=red, 2=yellow, 3=green
   Color get color {
-    switch (type) {
-      case NotificationType.expiringSoon:
-        return const Color(0xFFFFC107);
-      case NotificationType.expired:
-      case NotificationType.expiredBoxFull:
-        return const Color(0xFFDC3545);
-      case NotificationType.doorOpen:
-        return const Color(0xFF007BFF);
-      case NotificationType.zoneEmpty:
-        return const Color(0xFF6C757D);
-    }
-  }
-
-  IconData get icon {
-    switch (type) {
-      case NotificationType.expiringSoon:
-        return Icons.hourglass_bottom_rounded;
-      case NotificationType.expired:
-        return Icons.warning_amber_rounded;
-      case NotificationType.expiredBoxFull:
-        return Icons.inventory_2_rounded;
-      case NotificationType.doorOpen:
-        return Icons.door_front_door_rounded;
-      case NotificationType.zoneEmpty:
-        return Icons.layers_clear_rounded;
+    switch (priority) {
+      case 1:
+        return const Color(0xFFDC3545); // Red
+      case 2:
+        return const Color(0xFFFFC107); // Yellow
+      case 3:
+        return const Color(0xFF28A745); // Green
+      default:
+        return const Color(0xFF6C757D); // Gray
     }
   }
 

@@ -1,4 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -144,20 +144,19 @@ class _ScanPageState extends State<ScanPage>
     );
   }
 
-  // ── Firestore duplicate check ─────────────────────────────────────────────
+  // ── Realtime Database duplicate check ─────────────────────────────────────
   //
-  // Checks all 4 zone sub-collections for the given UID.
+  // Checks all 4 zone paths for the given UID.
   // Returns the zone name if found, null if not found.
 
   Future<String?> _findExistingZone(String uid) async {
     final zones = ['zone1', 'zone2', 'zone3', 'pirimi'];
     for (final zone in zones) {
       final path = FridgePaths.collectionForZone(zone);
-      final doc = await FirebaseFirestore.instance
-          .collection(path)
-          .doc(uid)
+      final snapshot = await FirebaseDatabase.instance
+          .ref('$path/$uid')
           .get();
-      if (doc.exists) return zone;
+      if (snapshot.exists) return zone;
     }
     return null;
   }
@@ -173,7 +172,7 @@ class _ScanPageState extends State<ScanPage>
 
     final parsed = _parseQr(rawValue);
 
-    // Only check Firestore if the QR is a valid SmartFresh code
+    // Only check Realtime Database if the QR is a valid SmartFresh code
     String? existingZone;
     if (parsed.valid && parsed.uid != 'UNKNOWN') {
       existingZone = await _findExistingZone(parsed.uid);
@@ -446,6 +445,7 @@ class _ScanOverlay extends StatelessWidget {
 class _OverlayPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
+    // ignore: deprecated_member_use
     final paint = Paint()..color = Colors.black.withOpacity(0.55);
     final center = Offset(size.width / 2, size.height / 2);
     final cutout = Rect.fromCenter(center: center, width: 260, height: 260);

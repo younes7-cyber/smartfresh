@@ -158,7 +158,7 @@ class FcmService {
 
   void _onNotificationTap(RemoteMessage message) {
     debugPrint('👆 Notification tapped: "${message.notification?.title}"');
-    // TODO: navigate based on message.data['type'] if needed
+    
   }
 
   void _onLocalTap(NotificationResponse response) {
@@ -247,6 +247,77 @@ class FcmService {
       httpClient.close(force: false);
     } catch (e, st) {
       debugPrint('❌ sendAlertNotification error: $e\n$st');
+    }
+  }
+
+  /// Send alert via FCM to all users subscribed to 'alerts' topic
+  Future<void> sendAlertViaFcm({
+    required String name,
+    required String context,
+  }) async {
+    if (kIsWeb) {
+      debugPrint('⚠️ sendAlertViaFcm: not supported on web');
+      return;
+    }
+
+    try {
+      final serviceAccount = await _loadServiceAccount();
+      if (serviceAccount == null) return;
+
+      final accessToken = await _getOAuthToken(serviceAccount);
+      if (accessToken == null) return;
+
+      final projectId = serviceAccount['project_id'] as String;
+
+      final payload = jsonEncode({
+        'message': {
+          'notification': {
+            'title': name,
+            'body': context,
+          },
+          'topic': 'alerts',
+          'android': {
+            'notification': {
+              'channel_id': 'smartfresh_alerts',
+              'priority': 'HIGH',
+              'sound': 'default',
+              'click_action': 'FLUTTER_NOTIFICATION_CLICK',
+            },
+          },
+          'apns': {
+            'payload': {
+              'aps': {
+                'sound': 'default',
+                'badge': 1,
+              },
+            },
+          },
+        },
+      });
+
+      final httpClient = HttpClient();
+      final request = await httpClient.postUrl(
+        Uri.parse(
+            'https://fcm.googleapis.com/v1/projects/$projectId/messages:send'),
+      );
+      request.headers
+        ..set(HttpHeaders.authorizationHeader, 'Bearer $accessToken')
+        ..set(HttpHeaders.contentTypeHeader, 'application/json; charset=utf-8');
+      request.write(payload);
+
+      final response = await request.close();
+      final body = await response.transform(utf8.decoder).join();
+
+      if (response.statusCode == 200) {
+        debugPrint('✅ FCM alert sent to topic "alerts": "$name" | "$context"');
+      } else {
+        debugPrint(
+            '❌ FCM send failed [${response.statusCode}]: $body');
+      }
+
+      httpClient.close(force: false);
+    } catch (e, st) {
+      debugPrint('❌ sendAlertViaFcm error: $e\n$st');
     }
   }
 

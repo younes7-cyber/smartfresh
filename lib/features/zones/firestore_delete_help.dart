@@ -1,58 +1,100 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../shared/models/product_model.dart';
 
-final _db = FirebaseFirestore.instance;
+final _db = FirebaseDatabase.instance.ref();
+
+// ── Action paths ──────────────────────────────────────────────────────────────
+
+/// Set the ouvre_boite (open box) flag to true when PIN is entered correctly
+Future<void> setBoxOpened() async {
+  try {
+    await _db
+        .child('/action/jI3Xr4kfUsNpGGhMCnZF/ouvre_boite')
+        .set(true);
+  } catch (e) {
+    print('Error setting ouvre_boite: $e');
+    rethrow;
+  }
+}
 
 // ── Per-zone real-time StreamProviders ───────────────────────────────────────
 
-/// Stream of zone1 products — updates instantly on Firestore changes
+/// Stream of zone1 products — updates instantly on Realtime Database changes
 final zone1Provider = StreamProvider<List<ProductModel>>((ref) {
-  return _db
-      .collection(FridgePaths.zone1)
-      .snapshots()
-      .map((snap) => snap.docs
-          .map((doc) => ProductModel.fromFirestore(doc, ProductZone.zone1))
-          .toList());
+  return _db.child(FridgePaths.zone1).onValue.map((event) {
+    final snapshot = event.snapshot;
+    if (!snapshot.exists) return [];
+    final data = snapshot.value as Map?;
+    if (data == null) return [];
+    return data.entries
+        .map((e) => ProductModel.fromRealtimeDb(
+              Map<String, dynamic>.from(e.value as Map),
+              e.key,
+              ProductZone.zone1,
+            ))
+        .toList();
+  });
 });
 
 /// Stream of zone2 products
 final zone2Provider = StreamProvider<List<ProductModel>>((ref) {
-  return _db
-      .collection(FridgePaths.zone2)
-      .snapshots()
-      .map((snap) => snap.docs
-          .map((doc) => ProductModel.fromFirestore(doc, ProductZone.zone2))
-          .toList());
+  return _db.child(FridgePaths.zone2).onValue.map((event) {
+    final snapshot = event.snapshot;
+    if (!snapshot.exists) return [];
+    final data = snapshot.value as Map?;
+    if (data == null) return [];
+    return data.entries
+        .map((e) => ProductModel.fromRealtimeDb(
+              Map<String, dynamic>.from(e.value as Map),
+              e.key,
+              ProductZone.zone2,
+            ))
+        .toList();
+  });
 });
 
 /// Stream of zone3 products (expiring soon zone)
 final zone3Provider = StreamProvider<List<ProductModel>>((ref) {
-  return _db
-      .collection(FridgePaths.zone3)
-      .snapshots()
-      .map((snap) => snap.docs
-          .map((doc) => ProductModel.fromFirestore(doc, ProductZone.zone3))
-          .toList());
+  return _db.child(FridgePaths.zone3).onValue.map((event) {
+    final snapshot = event.snapshot;
+    if (!snapshot.exists) return [];
+    final data = snapshot.value as Map?;
+    if (data == null) return [];
+    return data.entries
+        .map((e) => ProductModel.fromRealtimeDb(
+              Map<String, dynamic>.from(e.value as Map),
+              e.key,
+              ProductZone.zone3,
+            ))
+        .toList();
+  });
 });
 
 /// Stream of pirimi (expired box) products
 final pirimiProvider = StreamProvider<List<ProductModel>>((ref) {
-  return _db
-      .collection(FridgePaths.pirimi)
-      .snapshots()
-      .map((snap) => snap.docs
-          .map((doc) => ProductModel.fromFirestore(doc, ProductZone.expired))
-          .toList());
+  return _db.child(FridgePaths.pirimi).onValue.map((event) {
+    final snapshot = event.snapshot;
+    if (!snapshot.exists) return [];
+    final data = snapshot.value as Map?;
+    if (data == null) return [];
+    return data.entries
+        .map((e) => ProductModel.fromRealtimeDb(
+              Map<String, dynamic>.from(e.value as Map),
+              e.key,
+              ProductZone.expired,
+            ))
+        .toList();
+  });
 });
 
-// ── Firestore delete helpers ──────────────────────────────────────────────────
+// ── Realtime Database delete helpers ───────────────────────────────────────────
 
-/// Delete a product document from its zone sub-collection
+/// Delete a product from its zone
 Future<void> deleteProductFromZone(ProductModel product) async {
   final collectionPath = _zoneCollectionPath(product.zone);
-  await _db.collection(collectionPath).doc(product.id).delete();
+  await _db.child('$collectionPath/${product.id}').remove();
 }
 
 String _zoneCollectionPath(ProductZone zone) {

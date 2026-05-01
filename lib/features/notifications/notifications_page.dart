@@ -2,7 +2,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/state/app_providers.dart';
+import '../../service/alerts_service.dart';
 import '../../shared/widgets/notification_card.dart';
 
 class NotificationsPage extends ConsumerWidget {
@@ -10,29 +10,52 @@ class NotificationsPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final notifications = ref.watch(notificationsProvider);
+    final alertsAsync = ref.watch(alertsStreamProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: Text('notifications'.tr()),
         actions: [
           TextButton(
-            onPressed: () => ref.read(notificationsProvider.notifier).markAllRead(),
+            onPressed: () async {
+              await AlertsService.markAllAsRead();
+            },
             child: Text('markAllAsRead'.tr()),
           ),
         ],
       ),
-      body: ListView.separated(
-        padding: const EdgeInsets.all(16),
-        itemCount: notifications.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 12),
-        itemBuilder: (context, index) {
-          final item = notifications[index];
-          return NotificationCard(
-            notification: item,
-            onDismiss: () => ref.read(notificationsProvider.notifier).removeById(item.id),
+      body: alertsAsync.when(
+        data: (notifications) {
+          if (notifications.isEmpty) {
+            return Center(
+              child: Text('No notifications'.tr()),
+            );
+          }
+          return ListView.separated(
+            padding: const EdgeInsets.all(16),
+            itemCount: notifications.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            itemBuilder: (context, index) {
+              final item = notifications[index];
+              return NotificationCard(
+                notification: item,
+                onDismiss: () async {
+                  await AlertsService.deleteAlert(item.id);
+                },
+                onTap: () async {
+                  // Mark as read when tapped
+                  await AlertsService.markAsRead(item.id);
+                },
+              );
+            },
           );
         },
+        loading: () => const Center(
+          child: CircularProgressIndicator(),
+        ),
+        error: (error, stackTrace) => Center(
+          child: Text('Error loading notifications: $error'),
+        ),
       ),
     );
   }

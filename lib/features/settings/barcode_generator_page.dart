@@ -391,24 +391,6 @@ class _TicketCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Header ──
-          Row(
-            children: [
-              const Icon(Icons.ac_unit_rounded,
-                  color: ColorPalette.primary, size: 22),
-              const SizedBox(width: 8),
-              Text(
-                'SmartFresh',
-                style: TextStyle(
-                  color: ColorPalette.primary,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 18,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Divider(color: ColorPalette.primary.withValues(alpha: 0.2)),
           const SizedBox(height: 10),
 
           // ── Product info + QR code side by side ──

@@ -1,4 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -15,13 +15,15 @@ class AuthResult {
   bool get isSuccess => error == null;
 }
 
-/// Central Firebase Authentication + Firestore service
+/// Central Firebase Authentication + Realtime Database service
 class AuthService {
   AuthService._();
   static final instance = AuthService._();
 
   final _auth = FirebaseAuth.instance;
-  final _firestore = FirebaseFirestore.instance;
+  final _db = FirebaseDatabase.instance;
+  
+  // Database URL
 
   // ── SharedPreferences key ─────────────────────────────────────────────────
   //
@@ -90,23 +92,23 @@ class AuthService {
         debugPrint('FCM token error (non-blocking): $e');
       }
 
-      // 4. Save user document in Firestore
+      // 4. Save user document in Realtime Database
       //    Fields:
       //      - uid, username, email, createdAt, emailVerified
       //      - topic: 'alerts'   → marks this user as subscribed to alert topic
       //      - fcmToken          → used for targeted direct push (optional)
       try {
-        await _firestore.collection('users').doc(user.uid).set({
+        await _db.ref('users/${user.uid}').set({
           'uid': user.uid,
           'username': username.trim(),
           'email': email.trim().toLowerCase(),
-          'createdAt': FieldValue.serverTimestamp(),
+          'createdAt': DateTime.now().millisecondsSinceEpoch,
           'emailVerified': false,
           'topic': 'alerts',
           if (fcmToken != null) 'fcmToken': fcmToken,
         });
       } catch (e) {
-        debugPrint('Firestore write error during signup (non-blocking): $e');
+        debugPrint('Realtime Database write error during signup (non-blocking): $e');
       }
 
       // 5. Persist auto-login flag ONCE (never re-written until logout)
@@ -181,12 +183,12 @@ class AuthService {
 
       if (verified && freshUser != null) {
         try {
-          await _firestore.collection('users').doc(freshUser.uid).update({
+          await _db.ref('users/${freshUser.uid}').update({
             'emailVerified': true,
-            'verifiedAt': FieldValue.serverTimestamp(),
+            'verifiedAt': DateTime.now().millisecondsSinceEpoch,
           });
         } catch (e) {
-          debugPrint('Firestore emailVerified update error: $e');
+          debugPrint('Realtime Database emailVerified update error: $e');
         }
       }
 
@@ -197,14 +199,17 @@ class AuthService {
     }
   }
 
-  // ── Fetch user profile from Firestore ─────────────────────────────────────
+  // ── Fetch user profile from Realtime Database ────────────────────────────
 
   Future<Map<String, dynamic>?> fetchUserProfile() async {
     try {
       final uid = _auth.currentUser?.uid;
       if (uid == null) return null;
-      final doc = await _firestore.collection('users').doc(uid).get();
-      return doc.data();
+      final snapshot = await _db.ref('users/$uid').get();
+      if (snapshot.exists) {
+        return Map<String, dynamic>.from(snapshot.value as Map);
+      }
+      return null;
     } catch (e) {
       debugPrint('fetchUserProfile error: $e');
       return null;
@@ -242,9 +247,9 @@ class AuthService {
   void _refreshFcmToken(String uid) {
     FirebaseMessaging.instance.getToken().then((token) {
       if (token != null) {
-        _firestore.collection('users').doc(uid).update({
+        _db.ref('users/$uid').update({
           'fcmToken': token,
-          'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),
+          'fcmTokenUpdatedAt': DateTime.now().millisecondsSinceEpoch,
         }).catchError((e) => debugPrint('FCM token update error: $e'));
       }
     // ignore: invalid_return_type_for_catch_error

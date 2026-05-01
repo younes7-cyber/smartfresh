@@ -25,8 +25,6 @@ class DashboardPage extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // ── Fridge status banner ──
-          _FridgeStatusBanner(),
           const SizedBox(height: 16),
 
           // ── Summary cards grid ──
@@ -364,45 +362,6 @@ class _StatCard extends StatelessWidget {
 
 // ── Fridge Status Banner ──────────────────────────────────────────────────────
 
-class _FridgeStatusBanner extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            _PulsingDot(color: ColorPalette.success),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                '${'fridgeStatus'.tr()}: ${'optimal'.tr()}  •  4°C  •  ${'doorClosed'.tr()}',
-                style: const TextStyle(fontWeight: FontWeight.w500),
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: ColorPalette.success.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: const Text(
-                'OPTIMAL',
-                style: TextStyle(
-                  color: ColorPalette.success,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 11,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 class _PulsingDot extends StatefulWidget {
   const _PulsingDot({required this.color});
