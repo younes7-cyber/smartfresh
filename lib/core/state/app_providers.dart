@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../mock/mock_data.dart';
 import '../../shared/models/notification_model.dart';
 import '../../shared/models/product_model.dart';
 
@@ -19,8 +18,12 @@ class LocaleNotifier extends StateNotifier<Locale> {
   final Ref ref;
 
   static Locale _loadInitialLocale(SharedPreferences prefs) {
-    final code = prefs.getString(_localeKey);
-    return Locale(code ?? 'ar');
+    try {
+      final code = prefs.getString(_localeKey) ?? 'ar';
+      return Locale(code);
+    } catch (e) {
+      return const Locale('ar');
+    }
   }
 
   Future<void> setLocale(Locale locale) async {
@@ -35,9 +38,14 @@ class ThemeModeNotifier extends StateNotifier<ThemeMode> {
   final Ref ref;
 
   static ThemeMode _loadInitialTheme(SharedPreferences prefs) {
-    final value = prefs.getString(_themeKey);
-    if (value == 'dark') return ThemeMode.dark;
-    return ThemeMode.light;
+    try {
+      final value = prefs.getString(_themeKey);
+      if (value == 'dark') return ThemeMode.dark;
+      if (value == 'light') return ThemeMode.light;
+      return ThemeMode.light;
+    } catch (e) {
+      return ThemeMode.light;
+    }
   }
 
   Future<void> setThemeMode(ThemeMode mode) async {
@@ -58,7 +66,7 @@ class NavigationNotifier extends StateNotifier<int> {
 }
 
 class ProductsNotifier extends StateNotifier<List<ProductModel>> {
-  ProductsNotifier() : super(MockData.products);
+  ProductsNotifier() : super([]);
 
   void addProduct(ProductModel product) {
     state = [product, ...state];
@@ -74,7 +82,7 @@ class ProductsNotifier extends StateNotifier<List<ProductModel>> {
 }
 
 class NotificationsNotifier extends StateNotifier<List<AppNotificationModel>> {
-  NotificationsNotifier() : super(MockData.notifications);
+  NotificationsNotifier() : super([]);
 
   void markAllRead() {
     state = [for (final notification in state) notification.copyWith(isRead: true)];
@@ -94,5 +102,3 @@ final notificationsProvider = StateNotifierProvider<NotificationsNotifier, List<
 final unreadNotificationCountProvider = Provider<int>((ref) {
   return ref.watch(notificationsProvider).where((item) => !item.isRead).length;
 });
-
-final mockProductStatsProvider = Provider((ref) => MockData.monthlyStats);

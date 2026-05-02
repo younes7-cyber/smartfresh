@@ -28,7 +28,7 @@ class NotificationsPage extends ConsumerWidget {
         data: (notifications) {
           if (notifications.isEmpty) {
             return Center(
-              child: Text('No notifications'.tr()),
+              child: Text('noNotifications'.tr()),
             );
           }
           return ListView.separated(
@@ -54,7 +54,7 @@ class NotificationsPage extends ConsumerWidget {
           child: CircularProgressIndicator(),
         ),
         error: (error, stackTrace) => Center(
-          child: Text('Error loading notifications: $error'),
+          child: Text('loadError'.tr()),
         ),
       ),
     );

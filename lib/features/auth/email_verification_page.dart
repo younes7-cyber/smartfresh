@@ -205,8 +205,6 @@ class _EmailVerificationPageState extends ConsumerState<EmailVerificationPage>
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Scaffold(
       body: Stack(
         children: [
@@ -325,9 +323,7 @@ class _EmailVerificationPageState extends ConsumerState<EmailVerificationPage>
                         const SizedBox(height: 32),
                         Container(
                           decoration: BoxDecoration(
-                            color: isDark
-                                ? const Color(0xFF1E1E1E)
-                                : Colors.white,
+                            color: Theme.of(context).colorScheme.surface,
                             borderRadius: BorderRadius.circular(24),
                             boxShadow: [
                               BoxShadow(

@@ -23,9 +23,9 @@ class AppTheme {
         headlineMedium: GoogleFonts.poppins(fontSize: 24, fontWeight: FontWeight.w600),
         titleLarge: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w600),
       ),
-      appBarTheme: const AppBarTheme(
+      appBarTheme: AppBarTheme(
         centerTitle: true,
-        backgroundColor: Colors.white,
+        backgroundColor: ColorPalette.backgroundLight,
         foregroundColor: Colors.black,
         elevation: 1,
         surfaceTintColor: Colors.transparent,
@@ -68,10 +68,10 @@ class AppTheme {
         headlineMedium: GoogleFonts.poppins(fontSize: 24, fontWeight: FontWeight.w600),
         titleLarge: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w600),
       ),
-      appBarTheme: const AppBarTheme(
+      appBarTheme: AppBarTheme(
         centerTitle: true,
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
+        backgroundColor: ColorPalette.backgroundDark,
+        foregroundColor: Colors.white,
         elevation: 1,
         surfaceTintColor: Colors.transparent,
       ),
