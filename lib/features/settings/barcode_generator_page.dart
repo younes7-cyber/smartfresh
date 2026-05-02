@@ -93,12 +93,14 @@ class _BarcodeGeneratorPageState extends State<BarcodeGeneratorPage> {
       initialTime: TimeOfDay.now(),
     );
     if (time == null || !mounted) return;
-    setState(() {
-      _expiryDateTime = DateTime(
-          date.year, date.month, date.day, time.hour, time.minute, 0);
-      _expiryController.text =
-          DateFormat('dd/MM/yyyy HH:mm:ss').format(_expiryDateTime!);
-    });
+    if (mounted) {
+      setState(() {
+        _expiryDateTime = DateTime(
+            date.year, date.month, date.day, time.hour, time.minute, 0);
+        _expiryController.text =
+            DateFormat('dd/MM/yyyy HH:mm:ss').format(_expiryDateTime!);
+      });
+    }
   }
 
   // ── Generate ─────────────────────────────────────────────────────────────
@@ -114,7 +116,9 @@ class _BarcodeGeneratorPageState extends State<BarcodeGeneratorPage> {
       );
       return;
     }
-    setState(() => _generated = true);
+    if (mounted) {
+      setState(() => _generated = true);
+    }
   }
 
   // ── Gallery permission ───────────────────────────────────────────────────

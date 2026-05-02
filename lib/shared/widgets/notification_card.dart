@@ -55,6 +55,8 @@ class NotificationCard extends StatelessWidget {
                           children: [
                             Text(
                               notification.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: Theme.of(context)
                                   .textTheme
                                   .titleMedium

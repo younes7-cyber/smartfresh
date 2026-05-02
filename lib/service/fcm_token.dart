@@ -12,7 +12,7 @@ import 'package:googleapis_auth/auth_io.dart' as gauth;
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  debugPrint('📬 [Background] FCM: "${message.notification?.title}"');
+
   // Firebase is already initialized by the system before this runs.
   // Heavy work (DB writes, etc.) can be done here safely.
 }
@@ -40,7 +40,7 @@ class FcmService {
 
   Future<void> initialize() async {
     // 1️⃣ Request notification permissions
-    final settings = await _messaging.requestPermission(
+    await _messaging.requestPermission(
       alert: true,
       badge: true,
       sound: true,
@@ -48,7 +48,6 @@ class FcmService {
       criticalAlert: false,
       announcement: false,
     );
-    debugPrint('🔔 FCM permission status: ${settings.authorizationStatus}');
 
     // 2️⃣ Create the high-importance Android channel
     if (!kIsWeb) {
@@ -94,8 +93,7 @@ class FcmService {
 
     // 9️⃣ Log token for debugging
     if (!kIsWeb) {
-      final token = await _messaging.getToken();
-      debugPrint('📱 FCM Device Token: $token');
+      await _messaging.getToken();
     }
   }
 
@@ -104,30 +102,26 @@ class FcmService {
   Future<void> subscribeToAlerts() async {
     try {
       await _messaging.subscribeToTopic('alerts');
-      debugPrint('✅ Subscribed to topic: alerts');
     } catch (e) {
-      debugPrint('❌ subscribeToTopic error: $e');
+      // Error silently ignored
     }
   }
 
   Future<void> unsubscribeFromAlerts() async {
     try {
       await _messaging.unsubscribeFromTopic('alerts');
-      debugPrint('✅ Unsubscribed from topic: alerts');
     } catch (e) {
-      debugPrint('❌ unsubscribeFromTopic error: $e');
+      // Error silently ignored
     }
   }
 
   Future<String?> getToken() => _messaging.getToken().catchError((e) {
-        debugPrint('❌ getToken error: $e');
         return null;
       });
 
   // ── Foreground handler ────────────────────────────────────────────────────
 
   Future<void> _onForegroundMessage(RemoteMessage message) async {
-    debugPrint('📨 [Foreground] FCM: "${message.notification?.title}"');
     final notif = message.notification;
     if (notif == null) return;
 
@@ -157,12 +151,11 @@ class FcmService {
   }
 
   void _onNotificationTap(RemoteMessage message) {
-    debugPrint('👆 Notification tapped: "${message.notification?.title}"');
-    
+    // Notification tap handled
   }
 
   void _onLocalTap(NotificationResponse response) {
-    debugPrint('👆 Local notification tapped, payload: ${response.payload}');
+    // Local notification tap handled
   }
 
   // ── Send FCM via HTTP v1 API (service account OAuth2) ────────────────────
@@ -184,7 +177,6 @@ class FcmService {
     required String time,     // → second part of body (e.g. "14:32")
   }) async {
     if (kIsWeb) {
-      debugPrint('⚠️ sendAlertNotification: not supported on web');
       return;
     }
 
@@ -205,14 +197,16 @@ class FcmService {
             'body': '$context | $time',
           },
           'topic': 'alerts',
-          'android': {
-            'notification': {
-              'channel_id': 'smartfresh_alerts',
-              'priority': 'HIGH',
-              'sound': 'default',
-              'click_action': 'FLUTTER_NOTIFICATION_CLICK',
-            },
-          },
+// ✅ CODE CORRIGÉ
+'android': {
+  'priority': 'high', // Priorité du message (high ou normal)
+  'notification': {
+    'channel_id': 'smartfresh_alerts',
+    'notification_priority': 'PRIORITY_MAX', // Priorité d'affichage Android
+    'sound': 'default',
+    'click_action': 'FLUTTER_NOTIFICATION_CLICK',
+  },
+},
           'apns': {
             'payload': {
               'aps': {
@@ -235,18 +229,17 @@ class FcmService {
       request.write(payload);
 
       final response = await request.close();
-      final body = await response.transform(utf8.decoder).join();
+      await response.transform(utf8.decoder).join();
 
       if (response.statusCode == 200) {
-        debugPrint('✅ FCM alert sent: "$name" | "$context | $time"');
+        // FCM alert sent successfully
       } else {
-        debugPrint(
-            '❌ FCM send failed [${response.statusCode}]: $body');
+        // FCM send failed
       }
 
       httpClient.close(force: false);
-    } catch (e, st) {
-      debugPrint('❌ sendAlertNotification error: $e\n$st');
+    } catch (e) {
+      // Error silently ignored
     }
   }
 
@@ -256,7 +249,6 @@ class FcmService {
     required String context,
   }) async {
     if (kIsWeb) {
-      debugPrint('⚠️ sendAlertViaFcm: not supported on web');
       return;
     }
 
@@ -276,14 +268,16 @@ class FcmService {
             'body': context,
           },
           'topic': 'alerts',
-          'android': {
-            'notification': {
-              'channel_id': 'smartfresh_alerts',
-              'priority': 'HIGH',
-              'sound': 'default',
-              'click_action': 'FLUTTER_NOTIFICATION_CLICK',
-            },
-          },
+// ✅ CODE CORRIGÉ
+'android': {
+  'priority': 'high', // Priorité du message (high ou normal)
+  'notification': {
+    'channel_id': 'smartfresh_alerts',
+    'notification_priority': 'PRIORITY_MAX', // Priorité d'affichage Android
+    'sound': 'default',
+    'click_action': 'FLUTTER_NOTIFICATION_CLICK',
+  },
+},
           'apns': {
             'payload': {
               'aps': {
@@ -306,18 +300,17 @@ class FcmService {
       request.write(payload);
 
       final response = await request.close();
-      final body = await response.transform(utf8.decoder).join();
+      await response.transform(utf8.decoder).join();
 
       if (response.statusCode == 200) {
-        debugPrint('✅ FCM alert sent to topic "alerts": "$name" | "$context"');
+        // FCM alert sent to topic successfully
       } else {
-        debugPrint(
-            '❌ FCM send failed [${response.statusCode}]: $body');
+        // FCM send failed
       }
 
       httpClient.close(force: false);
-    } catch (e, st) {
-      debugPrint('❌ sendAlertViaFcm error: $e\n$st');
+    } catch (e) {
+      // Error silently ignored
     }
   }
 
@@ -329,7 +322,6 @@ class FcmService {
           'assets/smartfresh-69244-f8d65ec1b9dc.json');
       return jsonDecode(raw) as Map<String, dynamic>;
     } catch (e) {
-      debugPrint('❌ Failed to load service account JSON: $e');
       return null;
     }
   }
@@ -346,7 +338,6 @@ class FcmService {
       client.close();
       return token;
     } catch (e) {
-      debugPrint('❌ OAuth2 token error: $e');
       return null;
     }
   }

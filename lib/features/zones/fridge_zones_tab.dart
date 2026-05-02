@@ -176,10 +176,18 @@ class _FridgeZonesTabState extends ConsumerState<FridgeZonesTab> {
               filteredProducts: filtered,
               searchController: controller,
               isExpanded: _expanded.contains(zone),
-              onExpansionChanged: (expanded) => setState(() {
-                expanded ? _expanded.add(zone) : _expanded.remove(zone);
-              }),
-              onSearch: (_) => setState(() {}),
+              onExpansionChanged: (expanded) {
+                if (mounted) {
+                  setState(() {
+                    expanded ? _expanded.add(zone) : _expanded.remove(zone);
+                  });
+                }
+              },
+              onSearch: (_) {
+                if (mounted) {
+                  setState(() {});
+                }
+              },
               onDelete: _deleteProduct,
             );
           },

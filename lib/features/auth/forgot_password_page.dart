@@ -49,23 +49,33 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage>
 
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
-    setState(() => _error = null);
+    if (mounted) {
+      setState(() => _error = null);
+    }
 
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
-    setState(() => _loading = true);
+    if (mounted) {
+      setState(() => _loading = true);
+    }
 
     final result = await AuthService.instance
         .sendPasswordResetEmail(_emailController.text);
 
     if (!mounted) return;
-    setState(() => _loading = false);
+    if (mounted) {
+      setState(() => _loading = false);
+    }
 
     if (result.isSuccess) {
-      setState(() => _sent = true);
+      if (mounted) {
+        setState(() => _sent = true);
+      }
       _successController.forward();
     } else {
-      setState(() => _error = result.error?.tr());
+      if (mounted) {
+        setState(() => _error = result.error?.tr());
+      }
     }
   }
 

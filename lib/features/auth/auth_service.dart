@@ -1,7 +1,6 @@
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Result wrapper for auth operations
@@ -62,7 +61,7 @@ class AuthService {
         await prefs.remove(_kIsLoggedIn);
       }
     } catch (e) {
-      debugPrint('SharedPreferences error: $e');
+      // Error silently ignored
     }
   }
 
@@ -89,7 +88,7 @@ class AuthService {
       try {
         fcmToken = await FirebaseMessaging.instance.getToken();
       } catch (e) {
-        debugPrint('FCM token error (non-blocking): $e');
+        // FCM token error ignored
       }
 
       // 4. Save user document in Realtime Database
@@ -108,7 +107,7 @@ class AuthService {
           if (fcmToken != null) 'fcmToken': fcmToken,
         });
       } catch (e) {
-        debugPrint('Realtime Database write error during signup (non-blocking): $e');
+        // Database write error ignored
       }
 
       // 5. Persist auto-login flag ONCE (never re-written until logout)
@@ -118,10 +117,10 @@ class AuthService {
       try {
         await Future.delayed(const Duration(milliseconds: 500));
         await user.sendEmailVerification();
-      } on FirebaseAuthException catch (e) {
-        debugPrint('sendEmailVerification (non-blocking): ${e.code}');
+      } on FirebaseAuthException {
+        // Email verification error ignored
       } catch (e) {
-        debugPrint('sendEmailVerification unexpected error: $e');
+        // Email verification error ignored
       }
 
       return AuthResult.success(user);
@@ -188,13 +187,12 @@ class AuthService {
             'verifiedAt': DateTime.now().millisecondsSinceEpoch,
           });
         } catch (e) {
-          debugPrint('Realtime Database emailVerified update error: $e');
+          // Database update error ignored
         }
       }
 
       return verified;
     } catch (e) {
-      debugPrint('reloadAndCheckVerification error: $e');
       return false;
     }
   }
@@ -211,7 +209,6 @@ class AuthService {
       }
       return null;
     } catch (e) {
-      debugPrint('fetchUserProfile error: $e');
       return null;
     }
   }
@@ -238,7 +235,7 @@ class AuthService {
       await _persistLogin(false);
       await _auth.signOut();
     } catch (e) {
-      debugPrint('Sign out error: $e');
+      // Sign out error ignored
     }
   }
 
@@ -250,10 +247,10 @@ class AuthService {
         _db.ref('users/$uid').update({
           'fcmToken': token,
           'fcmTokenUpdatedAt': DateTime.now().millisecondsSinceEpoch,
-        }).catchError((e) => debugPrint('FCM token update error: $e'));
+        });
       }
     // ignore: invalid_return_type_for_catch_error
-    }).catchError((e) => debugPrint('getToken error: $e'));
+    });
   }
 
   // ── Firebase error mapping ────────────────────────────────────────────────

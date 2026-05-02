@@ -207,6 +207,7 @@ class _ExpiredProductsTabState extends ConsumerState<ExpiredProductsTab> {
                                 if (confirmed == true) {
                                   await deleteProductFromZone(product);
                                   if (mounted) {
+                                    // ignore: use_build_context_synchronously
                                     ScaffoldMessenger.of(context)
                                         .showSnackBar(
                                       SnackBar(

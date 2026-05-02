@@ -14,7 +14,6 @@ Future<void> setBoxOpened() async {
         .child('/action/jI3Xr4kfUsNpGGhMCnZF/ouvre_boite')
         .set(true);
   } catch (e) {
-    print('Error setting ouvre_boite: $e');
     rethrow;
   }
 }

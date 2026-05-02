@@ -53,14 +53,18 @@ class _LoginPageState extends ConsumerState<LoginPage>
 
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
-    setState(() => _authError = null);
+    if (mounted) {
+      setState(() => _authError = null);
+    }
 
     if (!(_formKey.currentState?.validate() ?? false)) {
       _shake();
       return;
     }
 
-    setState(() => _loading = true);
+    if (mounted) {
+      setState(() => _loading = true);
+    }
 
     final result = await AuthService.instance.signIn(
       email: _emailController.text,
@@ -81,7 +85,9 @@ class _LoginPageState extends ConsumerState<LoginPage>
         Navigator.of(context).pushReplacementNamed(AppRoutes.main);
       }
     } else {
-      setState(() => _authError = result.error?.tr());
+      if (mounted) {
+        setState(() => _authError = result.error?.tr());
+      }
       _shake();
     }
   }

@@ -26,7 +26,6 @@ class AlertsService {
                 data: alertData,
               );
             } catch (e) {
-              print('Error parsing alert: $e');
               return null;
             }
           })

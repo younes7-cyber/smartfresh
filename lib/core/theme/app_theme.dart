@@ -23,7 +23,13 @@ class AppTheme {
         headlineMedium: GoogleFonts.poppins(fontSize: 24, fontWeight: FontWeight.w600),
         titleLarge: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w600),
       ),
-      appBarTheme: const AppBarTheme(centerTitle: true),
+      appBarTheme: const AppBarTheme(
+        centerTitle: true,
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 1,
+        surfaceTintColor: Colors.transparent,
+      ),
       cardTheme: CardThemeData(
         color: scheme.surface,
         elevation: 2,
@@ -62,7 +68,13 @@ class AppTheme {
         headlineMedium: GoogleFonts.poppins(fontSize: 24, fontWeight: FontWeight.w600),
         titleLarge: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w600),
       ),
-      appBarTheme: const AppBarTheme(centerTitle: true),
+      appBarTheme: const AppBarTheme(
+        centerTitle: true,
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 1,
+        surfaceTintColor: Colors.transparent,
+      ),
       cardTheme: CardThemeData(
         color: scheme.surface,
         elevation: 2,

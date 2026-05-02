@@ -51,5 +51,16 @@
 	<string>SmartFresh needs access to save barcode tickets to your photo library.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>SmartFresh needs access to your photo library to save barcode tickets.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>SmartFresh needs access to your local network to discover devices.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_http._tcp</string>
+		<string>_smartfresh._tcp</string>
+	</array>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>SmartFresh may need microphone access for future features.</string>
+	<key>FirebaseAppDelegateProxyEnabled</key>
+	<true/>
 </dict>
 </plist>

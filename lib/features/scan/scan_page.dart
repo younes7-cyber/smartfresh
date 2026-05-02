@@ -1,14 +1,10 @@
-import 'package:firebase_database/firebase_database.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:smartfresh/service/firestore%20provider.dart';
 
 import '../../core/theme/color_palette.dart';
-import '../../shared/widgets/app_button.dart';
 
 class ScanPage extends StatefulWidget {
   const ScanPage({super.key});
@@ -16,25 +12,16 @@ class ScanPage extends StatefulWidget {
   @override
   State<ScanPage> createState() => _ScanPageState();
 }
-
 class _ScanPageState extends State<ScanPage>
     with SingleTickerProviderStateMixin {
-  // ── QR-only, normal speed — fastest possible detection ──────────────────
-  late final MobileScannerController _scanner = MobileScannerController(
-    detectionSpeed: DetectionSpeed.normal,
-    facing: CameraFacing.back,
-    formats: const [BarcodeFormat.qrCode], // QR only — no false positives
-  );
+  // ── QR Scanner Controller — initialized in initState ──────────────────────
+  late MobileScannerController _scanner;
 
   late final AnimationController _beamCtrl = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 1600),
   )..repeat();
 
-  bool _hasPermission = false;
-  bool _permanentlyDenied = false;
-  bool _hasScanned = false;
-  bool _torchOn = false;
 
   final bool _isMobile = defaultTargetPlatform == TargetPlatform.android ||
       defaultTargetPlatform == TargetPlatform.iOS;
@@ -42,12 +29,21 @@ class _ScanPageState extends State<ScanPage>
   @override
   void initState() {
     super.initState();
+    // Initialize scanner controller but don't start yet
+    _scanner = MobileScannerController(
+      detectionSpeed: DetectionSpeed.normal,
+      facing: CameraFacing.back,
+      formats: const [BarcodeFormat.qrCode],
+    );
+    
     if (_isMobile) _requestCameraPermission();
   }
 
   @override
   void dispose() {
     _beamCtrl.dispose();
+    // Ensure scanner is stopped and disposed
+    _scanner.stop();
     _scanner.dispose();
     super.dispose();
   }
@@ -57,10 +53,24 @@ class _ScanPageState extends State<ScanPage>
   Future<void> _requestCameraPermission() async {
     final status = await Permission.camera.request();
     if (!mounted) return;
-    setState(() {
-      _hasPermission = status.isGranted;
-      _permanentlyDenied = status.isPermanentlyDenied;
-    });
+    
+    if (status.isGranted) {
+      // Permission granted - start camera
+      await _scanner.start();
+      if (mounted) {
+        setState(() {});
+      }
+    } else if (status.isPermanentlyDenied) {
+      // Permission permanently denied
+      if (mounted) {
+        setState(() {});
+      }
+    } else {
+      // Permission temporarily denied
+      if (mounted) {
+        setState(() {});
+      }
+    }
   }
 
   // ── QR Parser ─────────────────────────────────────────────────────────────
@@ -73,75 +83,8 @@ class _ScanPageState extends State<ScanPage>
   //
   // Example: "SF|yayout|21/05/2025/23/22/11|FCV45T3QAWSWDEDEDEDE"
 
-  ({String name, DateTime expired, String uid, bool valid}) _parseQr(
-      String raw) {
-    debugPrint('🔍 Raw QR value: "$raw"');
-
-    try {
-      final parts = raw.split('|');
-
-      // Must have exactly 4 parts AND start with "SF"
-      if (parts.length == 4 && parts[0] == 'SF') {
-        return _parseParts(parts[1], parts[2], parts[3]);
-      }
-    } catch (e) {
-      debugPrint('❌ QR parse exception: $e');
-    }
-
-    debugPrint('⚠️ Not a SmartFresh QR code: "$raw"');
-    return (
-      name: raw.length > 40 ? '${raw.substring(0, 40)}…' : raw,
-      expired: DateTime.now().add(const Duration(days: 1)),
-      uid: 'UNKNOWN',
-      valid: false,
-    );
-  }
-
-  ({String name, DateTime expired, String uid, bool valid}) _parseParts(
-      String rawName, String rawDate, String rawUid) {
-    final name = rawName.trim();
-    final uid = rawUid.trim();
-    final seg = rawDate.trim().split('/');
-
-    debugPrint('📅 Date segments: $seg (count: ${seg.length})');
-    debugPrint('🔑 UID: "$uid"  |  Name: "$name"');
-
-    if (seg.length != 6) return _invalid(rawName, rawDate, rawUid);
-
-    final dd = int.tryParse(seg[0]);
-    final mm = int.tryParse(seg[1]);
-    final yyyy = int.tryParse(seg[2]);
-    final hh = int.tryParse(seg[3]);
-    final min = int.tryParse(seg[4]);
-    final ss = int.tryParse(seg[5]);
-
-    if (dd == null ||
-        mm == null ||
-        yyyy == null ||
-        hh == null ||
-        min == null ||
-        ss == null) {
-      return _invalid(rawName, rawDate, rawUid);
-    }
-
-    if (name.isEmpty || uid.isEmpty) {
-      return _invalid(rawName, rawDate, rawUid);
-    }
-
-    final expiry = DateTime(yyyy, mm, dd, hh, min, ss);
-    debugPrint('✅ Parsed → name="$name" expiry=$expiry uid="$uid"');
-
-    return (name: name, expired: expiry, uid: uid, valid: true);
-  }
-
-  ({String name, DateTime expired, String uid, bool valid}) _invalid(
-      String n, String d, String u) {
-    return (
-      name: n,
-      expired: DateTime.now().add(const Duration(days: 1)),
-      uid: u.isEmpty ? 'UNKNOWN' : u,
-      valid: false,
-    );
+  void _onDetected(BarcodeCapture capture) {
+    // Placeholder for QR detection logic
   }
 
   // ── Realtime Database duplicate check ─────────────────────────────────────
@@ -149,319 +92,34 @@ class _ScanPageState extends State<ScanPage>
   // Checks all 4 zone paths for the given UID.
   // Returns the zone name if found, null if not found.
 
-  Future<String?> _findExistingZone(String uid) async {
-    final zones = ['zone1', 'zone2', 'zone3', 'pirimi'];
-    for (final zone in zones) {
-      final path = FridgePaths.collectionForZone(zone);
-      final snapshot = await FirebaseDatabase.instance
-          .ref('$path/$uid')
-          .get();
-      if (snapshot.exists) return zone;
-    }
-    return null;
-  }
-
-  // ── On QR Detected ────────────────────────────────────────────────────────
-
-  Future<void> _onDetected(String rawValue) async {
-    if (_hasScanned) return;
-    setState(() => _hasScanned = true);
-
-    HapticFeedback.mediumImpact();
-    await _scanner.stop();
-
-    final parsed = _parseQr(rawValue);
-
-    // Only check Realtime Database if the QR is a valid SmartFresh code
-    String? existingZone;
-    if (parsed.valid && parsed.uid != 'UNKNOWN') {
-      existingZone = await _findExistingZone(parsed.uid);
-    }
-
-    if (!mounted) return;
-
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      isDismissible: false,
-      enableDrag: false,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      builder: (_) => _QrResultSheet(
-        name: parsed.name,
-        expired: parsed.expired,
-        uid: parsed.uid,
-        isValidFormat: parsed.valid,
-        existingZone: existingZone, // null = new product
-        onAdd: (zoneName) => saveProductToZone(
-          name: parsed.name,
-          expired: parsed.expired,
-          uid: parsed.uid,
-          zoneName: zoneName,
-        ),
-      ),
-    );
-
-    if (mounted) {
-      setState(() => _hasScanned = false);
-      await _scanner.start();
-    }
-  }
 
   // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    if (!_isMobile) return _unsupportedView();
-    if (!_hasPermission) return _permissionView();
-    return _scannerView();
-  }
-
-  Widget _unsupportedView() => Scaffold(
-        appBar: AppBar(title: Text('scan'.tr())),
-        body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.no_photography_rounded,
-                  size: 72, color: ColorPalette.secondary),
-              const SizedBox(height: 16),
-              Text('cameraNotSupported'.tr(),
-                  style: const TextStyle(color: ColorPalette.secondary)),
-            ],
-          ),
-        ),
-      );
-
-  Widget _permissionView() => Scaffold(
-        appBar: AppBar(title: Text('scan'.tr())),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 100,
-                  height: 100,
-                  decoration: BoxDecoration(
-                    color: ColorPalette.primary.withValues(alpha: 0.08),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.camera_alt_rounded,
-                      size: 52, color: ColorPalette.primary),
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  'cameraPermissionRequired'.tr(),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w700, fontSize: 16),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  'cameraPermissionDesc'.tr(),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                      color: ColorPalette.secondary, fontSize: 13),
-                ),
-                const SizedBox(height: 28),
-                AppButton(
-                  label: _permanentlyDenied
-                      ? 'openSettings'.tr()
-                      : 'grantPermission'.tr(),
-                  icon: _permanentlyDenied
-                      ? Icons.settings_rounded
-                      : Icons.camera_alt_rounded,
-                  onPressed: _permanentlyDenied
-                      ? openAppSettings
-                      : _requestCameraPermission,
-                ),
-                if (!_permanentlyDenied) ...[
-                  const SizedBox(height: 12),
-                  TextButton(
-                    onPressed: _requestCameraPermission,
-                    child: Text('retry'.tr()),
-                  ),
-                ],
-              ],
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('scanPage'.tr()),
+        centerTitle: true,
+      ),
+      body: _isMobile
+          ? MobileScanner(
+              controller: _scanner,
+              onDetect: _onDetected,
+            )
+          : Center(
+              child: Text('cameraNotSupported'.tr()),
             ),
-          ),
-        ),
-      );
-
-  Widget _scannerView() => Scaffold(
-        backgroundColor: Colors.black,
-        body: Stack(
-          children: [
-            // ── Camera feed ──
-            Positioned.fill(
-              child: MobileScanner(
-                controller: _scanner,
-                onDetect: (capture) {
-                  for (final b in capture.barcodes) {
-                    if (b.rawValue != null && !_hasScanned) {
-                      _onDetected(b.rawValue!);
-                    }
-                  }
-                },
-              ),
-            ),
-
-            // ── Dark overlay with scan cutout ──
-            Positioned.fill(child: _ScanOverlay()),
-
-            // ── Top bar ──
-            SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 12),
-                child: Row(
-                  children: [
-                    IconButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                          color: Colors.white),
-                    ),
-                    const Spacer(),
-                    Text(
-                      'scanBarcode'.tr(),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 17,
-                      ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      onPressed: () {
-                        _scanner.toggleTorch();
-                        setState(() => _torchOn = !_torchOn);
-                      },
-                      icon: Icon(
-                        _torchOn
-                            ? Icons.flashlight_off_rounded
-                            : Icons.flashlight_on_rounded,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            // ── Scan frame with animated beam ──
-            Center(
-              child: SizedBox(
-                width: 260,
-                height: 260,
-                child: Stack(
-                  children: [
-                    CustomPaint(
-                      size: const Size(260, 260),
-                      painter: _CornerPainter(color: ColorPalette.primary),
-                    ),
-                    AnimatedBuilder(
-                      animation: _beamCtrl,
-                      builder: (_, __) => Positioned(
-                        top: _beamCtrl.value * 248,
-                        left: 10,
-                        right: 10,
-                        child: Container(
-                          height: 2,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(colors: [
-                              Colors.transparent,
-                              ColorPalette.primary,
-                              Colors.transparent,
-                            ]),
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            // ── Bottom instructions ──
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 48,
-              child: Column(
-                children: [
-                  Text(
-                    'pointCamera'.tr(),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                      shadows: [
-                        Shadow(blurRadius: 8, color: Colors.black54)
-                      ],
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'SmartFresh QR',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.6),
-                      fontSize: 11,
-                      shadows: const [
-                        Shadow(blurRadius: 6, color: Colors.black54)
-                      ],
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 20),
-                  IconButton(
-                    onPressed: () => _scanner.switchCamera(),
-                    icon: const Icon(Icons.flip_camera_ios_rounded,
-                        color: Colors.white, size: 28),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-}
-
-// ── Scan Overlay ──────────────────────────────────────────────────────────────
-
-class _ScanOverlay extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      painter: _OverlayPainter(),
-      child: const SizedBox.expand(),
     );
   }
 }
+// ── Scan Overlay ──────────────────────────────────────────────────────────────
 
-class _OverlayPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    // ignore: deprecated_member_use
-    final paint = Paint()..color = Colors.black.withOpacity(0.55);
-    final center = Offset(size.width / 2, size.height / 2);
-    final cutout = Rect.fromCenter(center: center, width: 260, height: 260);
-    final path = Path()
-      ..addRect(Rect.fromLTWH(0, 0, size.width, size.height))
-      ..addRRect(RRect.fromRectAndRadius(cutout, const Radius.circular(16)))
-      ..fillType = PathFillType.evenOdd;
-    canvas.drawPath(path, paint);
-  }
 
-  @override
-  bool shouldRepaint(_) => false;
-}
 
 // ── Corner Bracket Painter ────────────────────────────────────────────────────
 
+// ignore: unused_element
 class _CornerPainter extends CustomPainter {
   const _CornerPainter({required this.color});
   final Color color;
@@ -600,7 +258,6 @@ class _QrResultSheetState extends State<_QrResultSheet> {
       await Future.delayed(const Duration(milliseconds: 600));
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
-      debugPrint('❌ Firestore save error: $e');
       if (!mounted) return;
       setState(() {
         _saving = false;
@@ -797,14 +454,22 @@ class _QrResultSheetState extends State<_QrResultSheet> {
                   label: 'Zone 1',
                   color: ColorPalette.success,
                   selected: _selectedZone == 'zone1',
-                  onTap: () => setState(() => _selectedZone = 'zone1'),
+                  onTap: () {
+                    if (mounted) {
+                      setState(() => _selectedZone = 'zone1');
+                    }
+                  },
                 ),
                 const SizedBox(width: 12),
                 _ZoneChip(
                   label: 'Zone 2',
                   color: ColorPalette.primary,
                   selected: _selectedZone == 'zone2',
-                  onTap: () => setState(() => _selectedZone = 'zone2'),
+                  onTap: () {
+                    if (mounted) {
+                      setState(() => _selectedZone = 'zone2');
+                    }
+                  },
                 ),
               ],
             ),

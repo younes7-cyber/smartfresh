@@ -91,14 +91,18 @@ class _SignupPageState extends State<SignupPage>
 
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
-    setState(() => _authError = null);
+    if (mounted) {
+      setState(() => _authError = null);
+    }
 
     if (!(_formKey.currentState?.validate() ?? false)) {
       _shake();
       return;
     }
 
-    setState(() => _loading = true);
+    if (mounted) {
+      setState(() => _loading = true);
+    }
 
     final result = await AuthService.instance.signUp(
       email: _emailController.text,
@@ -113,7 +117,9 @@ class _SignupPageState extends State<SignupPage>
       // Navigate to verification page; user is signed in but not verified
       Navigator.of(context).pushReplacementNamed(AppRoutes.verifyEmail);
     } else {
-      setState(() => _authError = result.error?.tr());
+      if (mounted) {
+        setState(() => _authError = result.error?.tr());
+      }
       _shake();
     }
   }
@@ -284,7 +290,11 @@ class _SignupPageState extends State<SignupPage>
                                 controller: _passwordController,
                                 label: 'password'.tr(),
                                 obscureText: !_showPassword,
-                                onChanged: (_) => setState(() {}),
+                                onChanged: (_) {
+                                  if (mounted) {
+                                    setState(() {});
+                                  }
+                                },
                                 validator: (v) {
                                   if (v == null || v.length < 6) {
                                     return 'passwordMin'.tr();

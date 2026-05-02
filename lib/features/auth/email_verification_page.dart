@@ -50,21 +50,27 @@ class _EmailVerificationPageState extends ConsumerState<EmailVerificationPage>
   }
 
   void _startCooldown() {
-    setState(() {
-      _cooldown = 60;
-      _canResend = false;
-    });
+    if (mounted) {
+      setState(() {
+        _cooldown = 60;
+        _canResend = false;
+      });
+    }
     _cooldownTimer?.cancel();
     _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!mounted) return;
       if (_cooldown <= 1) {
         t.cancel();
-        setState(() {
-          _cooldown = 0;
-          _canResend = true;
-        });
+        if (mounted) {
+          setState(() {
+            _cooldown = 0;
+            _canResend = true;
+          });
+        }
       } else {
-        setState(() => _cooldown--);
+        if (mounted) {
+          setState(() => _cooldown--);
+        }
       }
     });
   }
@@ -111,10 +117,12 @@ class _EmailVerificationPageState extends ConsumerState<EmailVerificationPage>
   }
 
   Future<void> _resend() async {
-    setState(() {
-      _resending = true;
-      _resendError = null;
-    });
+    if (mounted) {
+      setState(() {
+        _resending = true;
+        _resendError = null;
+      });
+    }
 
     final result = await AuthService.instance.sendVerificationEmail();
 
@@ -155,7 +163,13 @@ class _EmailVerificationPageState extends ConsumerState<EmailVerificationPage>
               const Icon(Icons.warning_amber_rounded,
                   color: Colors.white, size: 18),
               const SizedBox(width: 8),
-              Expanded(child: Text('notVerifiedYet'.tr())),
+              Expanded(
+                child: Text(
+                  'notVerifiedYet'.tr(),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ],
           ),
           backgroundColor: ColorPalette.warning,
