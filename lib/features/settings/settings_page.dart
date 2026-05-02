@@ -86,7 +86,7 @@ class SettingsPage extends ConsumerWidget {
                 color: ColorPalette.primary,
               ),
               title: Text('theme'.tr()),
-              subtitle: Text(themeMode == ThemeMode.dark ? 'Dark 🌙' : 'Light ☀️'),
+              subtitle: Text(themeMode == ThemeMode.dark ? 'dark'.tr() : 'light'.tr()),
               value: themeMode == ThemeMode.dark,
               activeThumbColor: ColorPalette.primary,
               onChanged: (value) => ref
