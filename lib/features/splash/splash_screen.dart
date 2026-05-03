@@ -99,10 +99,11 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     super.dispose();
   }
 
-  Future<void> _setLocale(Locale locale) async {
+Future<void> _setLocale(Locale locale) async {
+    final easyLocalization = EasyLocalization.of(context);
     await ref.read(localeProvider.notifier).setLocale(locale);
-    if (mounted) await context.setLocale(locale);
-  }
+    await easyLocalization?.setLocale(locale);
+}
 
   Future<void> _setTheme(ThemeMode mode) async {
     await ref.read(themeModeProvider.notifier).setThemeMode(mode);
@@ -242,96 +243,86 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                     opacity: _contentFade,
                     child: SlideTransition(
                       position: _contentSlide,
-                      child: _GlassPanel(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              // ── Language ──
-                              _PanelLabel(title: 'language'.tr()),
-                              const SizedBox(height: 12),
-                              Row(
-                                children: [
-                                  _LangChip(
-                                    flag: '🇸🇦',
-                                    label: 'العربية',
-                                    selected: locale.languageCode == 'ar',
-                                    onTap: () => _setLocale(const Locale('ar')),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  _LangChip(
-                                    flag: '🇫🇷',
-                                    label: 'Français',
-                                    selected: locale.languageCode == 'fr',
-                                    onTap: () => _setLocale(const Locale('fr')),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  _LangChip(
-                                    flag: '🇬🇧',
-                                    label: 'English',
-                                    selected: locale.languageCode == 'en',
-                                    onTap: () => _setLocale(const Locale('en')),
-                                  ),
-                                ],
-                              ),
-
-                              const SizedBox(height: 20),
-
-                              // ── Theme ──
-                              _PanelLabel(title: 'theme'.tr()),
-                              const SizedBox(height: 12),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: _ThemeChip(
-                                      icon: Icons.wb_sunny_rounded,
-                                      label: 'Light',
-                                      selected: themeMode == ThemeMode.light,
-                                      onTap: () => _setTheme(ThemeMode.light),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: _ThemeChip(
-                                      icon: Icons.nightlight_round,
-                                      label: 'Dark',
-                                      selected: themeMode == ThemeMode.dark,
-                                      onTap: () => _setTheme(ThemeMode.dark),
-                                    ),
-                                  ),
-                                ],
-                              ),
-
-                              const Spacer(),
-
-                              // ── CTA ──
-                              _GradientButton(
-                                label: 'getStarted'.tr(),
-                                onPressed: () => Navigator.of(context)
-                                    .pushReplacementNamed(AppRoutes.login),
-                              ),
-
-                              const SizedBox(height: 12),
-
-                              Center(
-                                child: TextButton(
-                                  onPressed: () => Navigator.of(context)
-                                      .pushReplacementNamed(AppRoutes.login),
-                                  child: Text(
-                                    'alreadyHaveAccount'.tr(),
-                                    style: const TextStyle(
-                                      color: ColorPalette.primary,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+    child: _GlassPanel(
+  child: Padding(
+    padding: const EdgeInsets.fromLTRB(20, 20, 24, 0), // on retire le padding du bas
+    child: Column(
+      children: [
+        // Partie scrollable (langue + thème)
+        Expanded(
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // ── Langue ──
+                _PanelLabel(title: 'language'.tr()),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    _LangChip(
+                      flag: '🇸🇦',
+                      label: 'العربية',
+                      selected: locale.languageCode == 'ar',
+                      onTap: () => _setLocale(const Locale('ar')),
+                    ),
+                    const SizedBox(width: 8),
+                    _LangChip(
+                      flag: '🇫🇷',
+                      label: 'Français',
+                      selected: locale.languageCode == 'fr',
+                      onTap: () => _setLocale(const Locale('fr')),
+                    ),
+                    const SizedBox(width: 8),
+                    _LangChip(
+                      flag: '🇬🇧',
+                      label: 'English',
+                      selected: locale.languageCode == 'en',
+                      onTap: () => _setLocale(const Locale('en')),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                // ── Thème ──
+                _PanelLabel(title: 'theme'.tr()),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _ThemeChip(
+                        icon: Icons.wb_sunny_rounded,
+                        label: 'Light',
+                        selected: themeMode == ThemeMode.light,
+                        onTap: () => _setTheme(ThemeMode.light),
                       ),
                     ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _ThemeChip(
+                        icon: Icons.nightlight_round,
+                        label: 'Dark',
+                        selected: themeMode == ThemeMode.dark,
+                        onTap: () => _setTheme(ThemeMode.dark),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        // Bouton toujours en bas
+        const SizedBox(height: 10),
+        _GradientButton(
+          label: 'getStarted'.tr(),
+          onPressed: () =>
+              Navigator.of(context).pushReplacementNamed(AppRoutes.login),
+        ),
+        // Pour éviter que le bouton soit coupé par la zone de sécurité en bas
+        SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
+      ],
+    ),
+  ),
+),     ),
                   ),
                 ),
               ],

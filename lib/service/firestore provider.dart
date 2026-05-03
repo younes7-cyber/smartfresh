@@ -1,5 +1,4 @@
 // ignore_for_file: file_names
-
 import 'dart:async';
 
 import 'package:firebase_database/firebase_database.dart';
@@ -10,29 +9,20 @@ import 'fcm_token.dart';
 
 final _db = FirebaseDatabase.instance.ref();
 
-// Database URL
-
-// ── Fridge paths ──────────────────────────────────────────────────────────────
-
 class FridgePaths {
   static const _col = 'frigo';
-
-  // Fixed hardware fridge ID — used for ALL reads AND writes
   static const _fixedId = 'TBNp1Y68mMV9nODEw6Kj';
   static const fridgeDoc = '$_col/$_fixedId';
 
-  // Sub-collection paths (now just nested paths in the database)
   static const zone1 = '$fridgeDoc/zone1';
   static const zone2 = '$fridgeDoc/zone2';
   static const zone3 = '$fridgeDoc/zone3';
   static const pirimi = '$fridgeDoc/pirimi';
 
-  /// Returns the collection path for a given zone name string
   static String collectionForZone(String zoneName) => '$fridgeDoc/$zoneName';
 }
 
-// ── Zone StreamProviders — real-time via .onValue ────────────────────────────
-
+// ── PROVIDERS (identiques) ──────────────────────────────────────────────────
 final zone1Provider = StreamProvider<List<ProductModel>>((ref) {
   return _db.child(FridgePaths.zone1).onValue.map((event) {
     final snapshot = event.snapshot;
@@ -97,18 +87,13 @@ final pirimiProvider = StreamProvider<List<ProductModel>>((ref) {
   });
 });
 
-// ── Dashboard count StreamProviders ──────────────────────────────────────────
-
-/// Total = zone1 + zone2 + zone3 (real-time combined stream)
 final totalProductsProvider = StreamProvider<int>((ref) {
   final controller = StreamController<int>.broadcast();
-
   final refs = [
     _db.child(FridgePaths.zone1).onValue,
     _db.child(FridgePaths.zone2).onValue,
     _db.child(FridgePaths.zone3).onValue,
   ];
-
   final snapshots = <DataSnapshot?>[null, null, null];
 
   void emitTotal() {
@@ -132,15 +117,12 @@ final totalProductsProvider = StreamProvider<int>((ref) {
   return controller.stream;
 });
 
-/// Fresh = zone1 + zone2
 final freshProductsProvider = StreamProvider<int>((ref) {
   final controller = StreamController<int>.broadcast();
-
   final refs = [
     _db.child(FridgePaths.zone1).onValue,
     _db.child(FridgePaths.zone2).onValue,
   ];
-
   final snapshots = <DataSnapshot?>[null, null];
 
   void emitFresh() {
@@ -164,7 +146,6 @@ final freshProductsProvider = StreamProvider<int>((ref) {
   return controller.stream;
 });
 
-/// Expiring soon = zone3
 final expiringSoonCountProvider = StreamProvider<int>((ref) {
   return _db.child(FridgePaths.zone3).onValue.map((event) {
     if (!event.snapshot.exists) return 0;
@@ -173,7 +154,6 @@ final expiringSoonCountProvider = StreamProvider<int>((ref) {
   });
 });
 
-/// Expired = pirimi
 final expiredCountProvider = StreamProvider<int>((ref) {
   return _db.child(FridgePaths.pirimi).onValue.map((event) {
     if (!event.snapshot.exists) return 0;
@@ -181,8 +161,6 @@ final expiredCountProvider = StreamProvider<int>((ref) {
     return data?.length ?? 0;
   });
 });
-
-// ── Annual chart stats ────────────────────────────────────────────────────────
 
 class MonthlyZoneStats {
   const MonthlyZoneStats({
@@ -199,17 +177,14 @@ class MonthlyZoneStats {
   final double pirimi;
 }
 
-/// Combines all 4 zone snapshots and buckets by createdAt month (current year).
-final annualStatsProvider =
-    StreamProvider<List<MonthlyZoneStats>>((ref) {
+final annualStatsProvider = StreamProvider<List<MonthlyZoneStats>>((ref) {
   final year = DateTime.now().year;
   const labels = [
     'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
   ];
 
-  final controller =
-      StreamController<List<MonthlyZoneStats>>.broadcast();
+  final controller = StreamController<List<MonthlyZoneStats>>.broadcast();
 
   final refs = [
     _db.child(FridgePaths.zone1).onValue,
@@ -265,8 +240,6 @@ final annualStatsProvider =
   return controller.stream;
 });
 
-// ── Realtime Database delete ───────────────────────────────────────────────────
-
 Future<void> deleteProductFromZone(ProductModel product) async {
   final path = switch (product.zone) {
     ProductZone.zone1 => FridgePaths.zone1,
@@ -277,24 +250,16 @@ Future<void> deleteProductFromZone(ProductModel product) async {
   await _db.child('$path/${product.id}').remove();
 }
 
-// ── Realtime Database write (scan) ─────────────────────────────────────────────
-//
-// Path : frigo/TBNp1Y68mMV9nODEw6Kj/{zoneName}/{productUID}
-// In Realtime DB, the productUID becomes a key in the hierarchical structure
-//
-// Using .set(...) creates or overwrites the value at that path
-
 Future<void> saveProductToZone({
   required String name,
   required DateTime expired,
   required String uid,
-  required String zoneName, // 'zone1' or 'zone2'
+  required String zoneName,
 }) async {
   final collectionPath = FridgePaths.collectionForZone(zoneName);
   final now = DateTime.now();
   final nowMillis = now.millisecondsSinceEpoch;
 
-  // Save product
   await _db.child('$collectionPath/$uid').set({
     'uid': uid,
     'name': name,
@@ -302,11 +267,10 @@ Future<void> saveProductToZone({
     'createdAt': nowMillis,
   });
 
-  // Create alert notification in database
   final alertPath = '${FridgePaths.fridgeDoc}/alerts';
   final context =
       'Expires ${expired.day}/${expired.month}/${expired.year} ${expired.hour}:${expired.minute.toString().padLeft(2, '0')}';
-  
+
   await _db.child(alertPath).push().set({
     'name': name,
     'context': context,
@@ -315,9 +279,19 @@ Future<void> saveProductToZone({
     'priority': 3,
   });
 
-  // Send FCM notification to all users subscribed to 'alerts' topic
   await FcmService.instance.sendAlertViaFcm(
     name: name,
     context: context,
   );
+}
+
+// 🔥 Fonction issue de firestore_delete_help.dart
+Future<void> setBoxOpened() async {
+  try {
+    await _db
+        .child('/action/jI3Xr4kfUsNpGGhMCnZF/ouvre_boite')
+        .set(true);
+  } catch (e) {
+    rethrow;
+  }
 }

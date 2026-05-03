@@ -73,7 +73,7 @@
   "noExpiredProductsDesc": "All products in your fridge are fresh!",
   "expiredProductsCount": "expired products",
   "openExpiredBox": "Open Expired Box",
-  "enterPin": "Enter 4-Digit Code",
+  "enterPin": "Enter PIN",
   "enterPinDesc": "Please enter the security code",
   "incorrectCode": "Incorrect code",
   "boxOpened": "Box Opened",
@@ -127,5 +127,14 @@
   "waitingVerification": "Waiting for verification...",
   "dark": "Dark",
   "light": "Light",
-  "noNotifications": "No notifications"
+  "noNotifications": "No notifications",
+  "totalProductsSubtitle": "Z1 + Z2 + Z3",
+  "freshProductsSubtitle": "Zone 1 + 2",
+  "expiringSoonSubtitle": "Zone 3",
+  "expiredSubtitle": "Expired",
+  "productAlreadyExists": "Product already exists",
+  "alreadyInZone": "Already in {zone}",
+  "productDuplicateDesc": "This product already exists in {zone}. You can still add it to another zone.",
+  "ticketSaved": "✅ Ticket saved to gallery!",
+  "ticketSaveError": "❌ Failed to save ticket"
 }

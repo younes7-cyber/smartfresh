@@ -6,7 +6,7 @@ import 'package:pin_code_fields/pin_code_fields.dart';
 import '../../core/constants.dart';
 import '../../core/theme/color_palette.dart';
 import '../../shared/widgets/product_card.dart';
-import 'firestore_delete_help.dart';
+import '../../service/firestore provider.dart';
 
 class ExpiredProductsTab extends ConsumerStatefulWidget {
   const ExpiredProductsTab({super.key});
@@ -16,14 +16,7 @@ class ExpiredProductsTab extends ConsumerStatefulWidget {
 }
 
 class _ExpiredProductsTabState extends ConsumerState<ExpiredProductsTab> {
-  // ── Open expired box dialog ───────────────────────────────────────────────
-
   Future<void> _showBoxDialog() async {
-    // ✅ Utiliser un StatefulWidget dédié (_PinDialog) qui possède son propre
-    // TextEditingController avec un cycle de vie initState/dispose propre.
-    // Le dialog retourne true uniquement quand le PIN est correct.
-    // Tout appel async (setBoxOpened) se fait ICI, après que le dialog
-    // soit complètement fermé → plus d'erreur "deactivated widget".
     final confirmed = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -49,11 +42,8 @@ class _ExpiredProductsTabState extends ConsumerState<ExpiredProductsTab> {
     }
   }
 
-  // ── Build ─────────────────────────────────────────────────────────────────
-
   @override
   Widget build(BuildContext context) {
-    // Real-time stream from frigo/.../pirimi
     final pirimiAsync = ref.watch(pirimiProvider);
 
     return Column(
@@ -117,7 +107,6 @@ class _ExpiredProductsTabState extends ConsumerState<ExpiredProductsTab> {
 
               return Column(
                 children: [
-                  // ── Header count banner ──
                   Container(
                     margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                     padding: const EdgeInsets.symmetric(
@@ -144,95 +133,92 @@ class _ExpiredProductsTabState extends ConsumerState<ExpiredProductsTab> {
                       ],
                     ),
                   ),
-
-                  // ── Product list ──
                   Expanded(
                     child: ListView.separated(
                       padding: const EdgeInsets.all(16),
                       itemCount: products.length,
                       separatorBuilder: (_, __) =>
                           const SizedBox(height: 10),
-                        itemBuilder: (context, index) {
-                          final product = products[index];
-                          return ProductCard(
-                            product: product,
-                            trailing: IconButton(
-                              icon: const Icon(Icons.delete_outline_rounded,
-                                  color: ColorPalette.danger, size: 20),
-                              onPressed: () async {
-                                // Confirm deletion
-                                final confirmed = await showDialog<bool>(
-                                  context: context,
-                                  builder: (_) => AlertDialog(
-                                    shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(16)),
-                                    title: const Row(
-                                      children: [
-                                        Icon(Icons.delete_outline_rounded,
-                                            color: ColorPalette.danger),
-                                        SizedBox(width: 8),
-                                        Text('Delete Product'),
-                                      ],
-                                    ),
-                                    content: Text(
-                                      'confirmDeleteProduct'.tr(),
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () =>
-                                            Navigator.pop(context, false),
-                                        child: Text('cancel'.tr()),
-                                      ),
-                                      ElevatedButton(
-                                        onPressed: () =>
-                                            Navigator.pop(context, true),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor:
-                                              ColorPalette.danger,
-                                          shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(8)),
-                                        ),
-                                        child: Text(
-                                          'delete'.tr(),
-                                          style: const TextStyle(
-                                              color: Colors.white),
-                                        ),
-                                      ),
+                      itemBuilder: (context, index) {
+                        final product = products[index];
+                        return ProductCard(
+                          product: product,
+                          trailing: IconButton(
+                            icon: const Icon(Icons.delete_outline_rounded,
+                                color: ColorPalette.danger, size: 20),
+                            onPressed: () async {
+                              final confirmed = await showDialog<bool>(
+                                context: context,
+                                builder: (_) => AlertDialog(
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius:
+                                          BorderRadius.circular(16)),
+                                  title: Row(
+                                    children: [
+                                      const Icon(Icons.delete_outline_rounded,
+                                          color: ColorPalette.danger),
+                                      const SizedBox(width: 8),
+                                      Text('deleteProduct'.tr()),
                                     ],
                                   ),
-                                );
-
-                                if (confirmed == true) {
-                                  await deleteProductFromZone(product);
-                                  if (mounted) {
-                                    // ignore: use_build_context_synchronously
-                                    ScaffoldMessenger.of(context)
-                                        .showSnackBar(
-                                      SnackBar(
-                                        content: Row(children: [
-                                          const Icon(
-                                              Icons.delete_outline_rounded,
-                                              color: Colors.white,
-                                              size: 18),
-                                          const SizedBox(width: 8),
-                                          Text('productDeleted'.tr()),
-                                        ]),
+                                  content: Text(
+                                    'confirmDeleteProduct'.tr(),
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(context, false),
+                                      child: Text('cancel'.tr()),
+                                    ),
+                                    ElevatedButton(
+                                      onPressed: () =>
+                                          Navigator.pop(context, true),
+                                      style: ElevatedButton.styleFrom(
                                         backgroundColor:
                                             ColorPalette.danger,
-                                        behavior: SnackBarBehavior.floating,
                                         shape: RoundedRectangleBorder(
                                             borderRadius:
-                                                BorderRadius.circular(12)),
+                                                BorderRadius.circular(8)),
                                       ),
-                                    );
-                                  }
+                                      child: Text(
+                                        'delete'.tr(),
+                                        style: const TextStyle(
+                                            color: Colors.white),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+
+                              if (confirmed == true) {
+                                await deleteProductFromZone(product);
+                                if (mounted) {
+                                  // ignore: use_build_context_synchronously
+                                  ScaffoldMessenger.of(context)
+                                      .showSnackBar(
+                                    SnackBar(
+                                      content: Row(children: [
+                                        const Icon(
+                                            Icons.delete_outline_rounded,
+                                            color: Colors.white,
+                                            size: 18),
+                                        const SizedBox(width: 8),
+                                        Text('productDeleted'.tr()),
+                                      ]),
+                                      backgroundColor:
+                                          ColorPalette.danger,
+                                      behavior: SnackBarBehavior.floating,
+                                      shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(12)),
+                                    ),
+                                  );
                                 }
-                              },
-                            ),
-                          );
-                        },
+                              }
+                            },
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ],
@@ -240,8 +226,6 @@ class _ExpiredProductsTabState extends ConsumerState<ExpiredProductsTab> {
             },
           ),
         ),
-
-        // ── Open expired box button ──
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
           child: SizedBox(
@@ -274,13 +258,6 @@ class _ExpiredProductsTabState extends ConsumerState<ExpiredProductsTab> {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Widget dialog PIN isolé avec son propre cycle de vie
-// Raison : PinCodeTextField nécessite un StatefulWidget réel pour que
-// initState/dispose du TextEditingController soient correctement gérés.
-// Le dialog retourne Navigator.pop(context, true) quand PIN correct,
-// ou Navigator.pop(context, false/null) si annulé.
-// ══════════════════════════════════════════════════════════════════════════════
-
 class _PinDialog extends StatefulWidget {
   const _PinDialog();
 
@@ -289,7 +266,6 @@ class _PinDialog extends StatefulWidget {
 }
 
 class _PinDialogState extends State<_PinDialog> {
-  // ✅ Controller créé dans initState et disposé dans dispose → cycle propre
   late final TextEditingController _pinController;
   String _currentPin = '';
   bool _pinError = false;
@@ -300,27 +276,20 @@ class _PinDialogState extends State<_PinDialog> {
     _pinController = TextEditingController();
   }
 
-  @override
-  void dispose() {
-    // 1. On garde une référence locale du contrôleur
-    final controllerToDispose = _pinController;
-    
-    // 2. On retarde sa destruction de 500ms. 
-    // Cela laisse le temps à l'animation de fermeture de se terminer sans erreur.
-    Future.delayed(const Duration(milliseconds: 5000), () {
-      controllerToDispose.dispose();
-    });
-    
+@override
+void dispose() {
+    // Suppression du Future.delayed, dispose immédiat
+    _pinController.dispose();
     super.dispose();
-  }
+}
+
   void _onValidate() {
     if (_currentPin.length < 4) return;
 
     if (_currentPin == AppPins.expiredBox) {
-      // Fermeture instantanée, excellente expérience utilisateur
       Navigator.of(context).pop(true);
     } else {
-      if (mounted) {  
+      if (mounted) {
         setState(() {
           _pinError = true;
           _currentPin = '';
@@ -329,11 +298,11 @@ class _PinDialogState extends State<_PinDialog> {
       }
     }
   }
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       title: Row(
         children: [
           Container(
@@ -361,8 +330,6 @@ class _PinDialogState extends State<_PinDialog> {
           ),
           const SizedBox(height: 20),
           PinCodeTextField(
-            // ✅ appContext = context de CE widget (toujours monté tant
-            // que le dialog est ouvert) → plus d'erreur StreamController
             appContext: context,
             length: 4,
             controller: _pinController,
@@ -387,16 +354,19 @@ class _PinDialogState extends State<_PinDialog> {
             ),
             enableActiveFill: true,
             keyboardType: TextInputType.number,
-            onChanged: (value) {
-           if(mounted){  setState(() {
-                _currentPin = value;
-                if (_pinError) _pinError = false;
-              });}
-            },
-            // ✅ onCompleted appelle _onValidate qui est synchrone
-            onCompleted: (_) => _onValidate(),
+   // Dans le PinCodeTextField
+onChanged: (value) {
+    if (!mounted) return; // Protection supplémentaire
+    setState(() {
+        _currentPin = value;
+        if (_pinError) _pinError = false;
+    });
+},
+onCompleted: (_) {
+    if (!mounted) return; // Ajout de la vérification
+    _onValidate();
+},
           ),
-          // Message d'erreur animé
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 200),
             child: _pinError

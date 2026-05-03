@@ -1,7 +1,7 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:smartfresh/features/zones/firestore_delete_help.dart';
+import 'package:smartfresh/service/firestore provider.dart';
 
 import '../../core/theme/color_palette.dart';
 import '../../shared/models/product_model.dart';
@@ -19,18 +19,19 @@ class _FridgeZonesTabState extends ConsumerState<FridgeZonesTab> {
     ProductZone.zone1: TextEditingController(),
     ProductZone.zone2: TextEditingController(),
     ProductZone.zone3: TextEditingController(),
+
   };
+  BuildContext? _buildContext; 
   final _expanded = <ProductZone>{ProductZone.zone1};
 
   @override
   void dispose() {
+    FocusScope.of(_buildContext!).unfocus();
     for (final c in _searchControllers.values) {
       c.dispose();
     }
     super.dispose();
   }
-
-  // ── Zone metadata ─────────────────────────────────────────────────────────
 
   String _zoneTitle(ProductZone zone) {
     switch (zone) {
@@ -71,8 +72,6 @@ class _FridgeZonesTabState extends ConsumerState<FridgeZonesTab> {
     }
   }
 
-  // ── Delete from Firestore ─────────────────────────────────────────────────
-
   Future<void> _deleteProduct(ProductModel product) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -88,8 +87,8 @@ class _FridgeZonesTabState extends ConsumerState<FridgeZonesTab> {
             style:
                 ElevatedButton.styleFrom(backgroundColor: ColorPalette.danger),
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text('delete'.tr(),
-                style: const TextStyle(color: Colors.white)),
+            child:
+                Text('delete'.tr(), style: const TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -125,11 +124,9 @@ class _FridgeZonesTabState extends ConsumerState<FridgeZonesTab> {
     }
   }
 
-  // ── Build ─────────────────────────────────────────────────────────────────
-
   @override
   Widget build(BuildContext context) {
-    // Watch each zone stream separately for independent real-time updates
+     _buildContext = context;
     final zone1Async = ref.watch(zone1Provider);
     final zone2Async = ref.watch(zone2Provider);
     final zone3Async = ref.watch(zone3Provider);
@@ -151,7 +148,8 @@ class _FridgeZonesTabState extends ConsumerState<FridgeZonesTab> {
         final color = _zoneColor(zone);
 
         return asyncValue.when(
-          loading: () => _ZoneShimmerCard(color: color, title: _zoneTitle(zone)),
+          loading: () =>
+              _ZoneShimmerCard(color: color, title: _zoneTitle(zone)),
           error: (e, _) => _ZoneErrorCard(
             color: color,
             title: _zoneTitle(zone),
@@ -184,9 +182,7 @@ class _FridgeZonesTabState extends ConsumerState<FridgeZonesTab> {
                 }
               },
               onSearch: (_) {
-                if (mounted) {
-                  setState(() {});
-                }
+                if (mounted) setState(() {});
               },
               onDelete: _deleteProduct,
             );
@@ -197,6 +193,7 @@ class _FridgeZonesTabState extends ConsumerState<FridgeZonesTab> {
   }
 }
 
+// ... (les widgets _ZoneCard, _ZoneShimmerCard, _ZoneErrorCard restent identiques)
 // ── Zone Card ─────────────────────────────────────────────────────────────────
 
 class _ZoneCard extends StatelessWidget {

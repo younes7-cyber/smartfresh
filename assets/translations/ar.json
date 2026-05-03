@@ -73,7 +73,7 @@
   "noExpiredProductsDesc": "جميع المنتجات في ثلاجتك طازجة!",
   "expiredProductsCount": "منتجات منتهية",
   "openExpiredBox": "فتح صندوق المنتهيات",
-  "enterPin": "أدخل رمزًا من 4 أرقام",
+  "enterPin": "أدخل رمزً",
   "enterPinDesc": "يرجى إدخال رمز الأمان",
   "incorrectCode": "الرمز غير صحيح",
   "boxOpened": "تم فتح الصندوق",
@@ -127,5 +127,14 @@
   "waitingVerification": "في انتظار التحقق...",
   "dark": "داكن",
   "light": "فاتح",
-  "noNotifications": "لا توجد إشعارات"
+  "noNotifications": "لا توجد إشعارات",
+  "totalProductsSubtitle": "Z1 + Z2 + Z3",
+  "freshProductsSubtitle": "المنطقة 1 + 2",
+  "expiringSoonSubtitle": "المنطقة 3",
+  "expiredSubtitle": "منتهية",
+  "productAlreadyExists": "المنتج موجود بالفعل",
+  "alreadyInZone": "موجود في {zone}",
+  "productDuplicateDesc": "هذا المنتج موجود بالفعل في {zone}. يمكنك إضافته لمنطقة أخرى.",
+  "ticketSaved": "✅ تم حفظ التذكرة في المعرض!",
+  "ticketSaveError": "❌ فشل حفظ التذكرة"
 }

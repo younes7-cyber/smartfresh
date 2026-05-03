@@ -19,63 +19,61 @@ import 'features/settings/barcode_generator_page.dart';
 import 'features/settings/settings_page.dart';
 import 'features/splash/splash_screen.dart';
 import 'features/zones/zones_page.dart';
-
 class SmartFreshApp extends ConsumerWidget {
   const SmartFreshApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final locale = ref.watch(localeProvider);
     final themeMode = ref.watch(themeModeProvider);
 
+    // ✅ Utilisez context.locale (fourni par EasyLocalization) au lieu du provider
+    final routeKey = ValueKey('${context.locale.languageCode}_${themeMode.name}');
+
     return MaterialApp(
+      key: ValueKey(context.locale.languageCode), // 👈 clé supplémentaire pour forcer la reconstruction complète
       title: 'SmartFresh',
       debugShowCheckedModeBanner: false,
-
-      locale: locale,
+      locale: context.locale,                       // 👈 locale gérée par EasyLocalization
       supportedLocales: context.supportedLocales,
       localizationsDelegates: context.localizationDelegates,
-
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: themeMode,
-
       onGenerateRoute: (settings) {
-        late final Widget page;
+                late final Widget page;
 
         switch (settings.name) {
-          // ── Public ──
           case AppRoutes.splash:
-            page = const SplashScreen();   // handles auto-login redirect
+            page = SplashScreen(key: routeKey);
           case AppRoutes.login:
-            page = const LoginPage();
+            page = LoginPage(key: routeKey);
           case AppRoutes.signup:
-            page = const SignupPage();
+            page = SignupPage(key: routeKey);
           case AppRoutes.forgotPassword:
-            page = const ForgotPasswordPage();
+            page = ForgotPasswordPage(key: routeKey);
 
-          // ── Auth required, verification handled by page ──
+          // Auth required, verification handled by page
           case AppRoutes.verifyEmail:
-            page = const AuthRequiredGuard(child: EmailVerificationPage());
+            page = AuthRequiredGuard(key: routeKey, child: EmailVerificationPage());
 
-          // ── Auth + email verified required ──
+          // Auth + email verified required
           case AppRoutes.main:
-            page = const AuthGuard(child: MainNavigation());
+            page = AuthGuard(key: routeKey, child: MainNavigation());
           case AppRoutes.dashboard:
-            page = const AuthGuard(child: DashboardPage());
+            page = AuthGuard(key: routeKey, child: DashboardPage());
           case AppRoutes.notifications:
-            page = const AuthGuard(child: NotificationsPage());
+            page = AuthGuard(key: routeKey, child: NotificationsPage());
           case AppRoutes.scan:
-            page = const AuthGuard(child: ScanPage());
+            page = AuthGuard(key: routeKey, child: ScanPage());
           case AppRoutes.zones:
-            page = const AuthGuard(child: ZonesPage());
+            page = AuthGuard(key: routeKey, child: ZonesPage());
           case AppRoutes.settings:
-            page = const AuthGuard(child: SettingsPage());
+            page = AuthGuard(key: routeKey, child: SettingsPage());
           case AppRoutes.barcodeGenerator:
-            page = const AuthGuard(child: BarcodeGeneratorPage());
+            page = AuthGuard(key: routeKey, child: BarcodeGeneratorPage());
 
           default:
-            page = const SplashScreen();
+            page = SplashScreen(key: routeKey);
         }
 
         return buildSlideFadeRoute(page, settings: settings);

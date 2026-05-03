@@ -19,10 +19,11 @@ class SettingsPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final locale = ref.watch(localeProvider);
+    ref.watch(localeProvider);
     final themeMode = ref.watch(themeModeProvider);
     final profileAsync = ref.watch(userProfileProvider);
-
+   final currentLocale = context.locale;
+    ref.watch(themeModeProvider);
     return Scaffold(
       appBar: AppBar(title: Text('settings'.tr())),
       body: ListView(
@@ -68,7 +69,7 @@ class SettingsPage extends ConsumerWidget {
             child: ListTile(
               leading: const Icon(Icons.language_rounded),
               title: Text('language'.tr()),
-              subtitle: Text(_languageLabel(locale.languageCode)),
+         subtitle: Text(_languageLabel(currentLocale.languageCode)),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => _showLocalePicker(context, ref),
             ),
@@ -170,9 +171,11 @@ class SettingsPage extends ConsumerWidget {
       }
     }
   }
+Future<void> _showLocalePicker(BuildContext context, WidgetRef ref) async {
+    // ✅ Capture l'instance d'EasyLocalization AVANT le dialogue asynchrone
+    final easyLocalization = EasyLocalization.of(context);
 
-  Future<void> _showLocalePicker(BuildContext context, WidgetRef ref) async {
-    await showModalBottomSheet<void>(
+    final chosenLang = await showModalBottomSheet<String>(
       context: context,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -181,7 +184,7 @@ class SettingsPage extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(height: 8),
+                   const SizedBox(height: 8),
             Container(
               width: 40,
               height: 4,
@@ -195,30 +198,53 @@ class SettingsPage extends ConsumerWidget {
               flag: '🇸🇦',
               label: 'العربية',
               code: 'ar',
-              ref: ref,
-              context: context,
-              sheetContext: sheetContext,
+              onTap: () => Navigator.pop(sheetContext, 'ar'),
             ),
             _LocaleTile(
               flag: '🇫🇷',
               label: 'Français',
               code: 'fr',
-              ref: ref,
-              context: context,
-              sheetContext: sheetContext,
+              onTap: () => Navigator.pop(sheetContext, 'fr'),
             ),
             _LocaleTile(
               flag: '🇬🇧',
               label: 'English',
               code: 'en',
-              ref: ref,
-              context: context,
-              sheetContext: sheetContext,
+              onTap: () => Navigator.pop(sheetContext, 'en'),
             ),
             const SizedBox(height: 8),
           ],
         ),
       ),
+    );   if (chosenLang != null && context.mounted) {
+      final locale = Locale(chosenLang);
+      // ✅ Utilise l'instance sauvegardée (pas de recherche d'ancêtre dangereuse)
+      await easyLocalization?.setLocale(locale);
+      await ref.read(localeProvider.notifier).setLocale(locale);
+    }
+  }
+}
+
+// ─── Tuile simplifiée ────────────────────────────────────────────
+class _LocaleTile extends StatelessWidget {
+  const _LocaleTile({
+    required this.flag,
+    required this.label,
+    required this.code,
+    required this.onTap,
+  });
+
+  final String flag;
+  final String label;
+  final String code;
+  final VoidCallback onTap;                     // ← simple callback
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: Text(flag, style: const TextStyle(fontSize: 24)),
+      title: Text(label),
+      onTap: onTap,
     );
   }
 }
@@ -312,35 +338,3 @@ class _UserProfileCard extends StatelessWidget {
 
 // ── Locale Tile ───────────────────────────────────────────────────────────────
 
-class _LocaleTile extends StatelessWidget {
-  const _LocaleTile({
-    required this.flag,
-    required this.label,
-    required this.code,
-    required this.ref,
-    required this.context,
-    required this.sheetContext,
-  });
-
-  final String flag;
-  final String label;
-  final String code;
-  final WidgetRef ref;
-  final BuildContext context;
-  final BuildContext sheetContext;
-
-  @override
-  Widget build(BuildContext ctx) {
-    return ListTile(
-      leading: Text(flag, style: const TextStyle(fontSize: 24)),
-      title: Text(label),
-      onTap: () async {
-        final locale = Locale(code);
-        await ref.read(localeProvider.notifier).setLocale(locale);
-        // ignore: use_build_context_synchronously
-        await context.setLocale(locale);
-        if (context.mounted) Navigator.pop(sheetContext);
-      },
-    );
-  }
-}

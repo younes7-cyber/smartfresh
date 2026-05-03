@@ -1,27 +1,32 @@
+import 'dart:async';
+
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../../core/state/app_providers.dart';
 import '../../core/theme/color_palette.dart';
+import '../../service/firestore provider.dart';
 
-class ScanPage extends StatefulWidget {
+class ScanPage extends ConsumerStatefulWidget {
   const ScanPage({super.key});
 
   @override
-  State<ScanPage> createState() => _ScanPageState();
+  ConsumerState<ScanPage> createState() => _ScanPageState();
 }
-class _ScanPageState extends State<ScanPage>
-    with SingleTickerProviderStateMixin {
-  // ── QR Scanner Controller — initialized in initState ──────────────────────
+
+class _ScanPageState extends ConsumerState<ScanPage>
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late MobileScannerController _scanner;
+  late final AnimationController _beamCtrl;
+  bool _isScannerReady = false;
 
-  late final AnimationController _beamCtrl = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 1600),
-  )..repeat();
-
+  // ═══ Anti‑répétition ═══
+  bool _isSheetOpen = false;
+  bool _cooldown = false;
 
   final bool _isMobile = defaultTargetPlatform == TargetPlatform.android ||
       defaultTargetPlatform == TargetPlatform.iOS;
@@ -29,71 +34,191 @@ class _ScanPageState extends State<ScanPage>
   @override
   void initState() {
     super.initState();
-    // Initialize scanner controller but don't start yet
+    WidgetsBinding.instance.addObserver(this);
+
+    _beamCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1600),
+    )..repeat();
+
     _scanner = MobileScannerController(
       detectionSpeed: DetectionSpeed.normal,
       facing: CameraFacing.back,
       formats: const [BarcodeFormat.qrCode],
     );
-    
-    if (_isMobile) _requestCameraPermission();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.listen(navigationIndexProvider, (prev, next) {
+        if (next == 2) {
+          _activateScanner();
+        } else {
+          _deactivateScanner();
+        }
+      });
+      if (ref.read(navigationIndexProvider) == 2) {
+        _activateScanner();
+      }
+    });
+  }
+
+  // ── Activation / Désactivation ──────────────────────────────────────────
+  Future<void> _activateScanner() async {
+    if (!_isMobile) return;
+    final status = await Permission.camera.status;
+    if (status.isGranted) {
+      if (mounted) {
+        await _scanner.start();
+        setState(() => _isScannerReady = true);
+      }
+    } else if (status.isDenied || status.isLimited) {
+      _requestCameraPermission();
+    } else if (status.isPermanentlyDenied) {
+      _showPermissionDialog();
+    }
+  }
+
+  void _deactivateScanner() {
+    if (_isMobile) {
+      _scanner.stop();
+      if (mounted) setState(() => _isScannerReady = false);
+    }
+  }
+
+  Future<void> _requestCameraPermission() async {
+    final status = await Permission.camera.request();
+    if (!mounted) return;
+    if (status.isGranted) {
+      await _scanner.start();
+      setState(() => _isScannerReady = true);
+    } else if (status.isPermanentlyDenied) {
+      _showPermissionDialog();
+    }
+  }
+
+  void _showPermissionDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('cameraPermissionRequired'.tr()),
+        content: Text('cameraPermissionDesc'.tr()),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('cancel'.tr()),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              openAppSettings();
+            },
+            child: Text('openSettings'.tr()),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _beamCtrl.dispose();
-    // Ensure scanner is stopped and disposed
     _scanner.stop();
     _scanner.dispose();
     super.dispose();
   }
 
-  // ── Camera Permission ─────────────────────────────────────────────────────
-
-  Future<void> _requestCameraPermission() async {
-    final status = await Permission.camera.request();
-    if (!mounted) return;
-    
-    if (status.isGranted) {
-      // Permission granted - start camera
-      await _scanner.start();
-      if (mounted) {
-        setState(() {});
-      }
-    } else if (status.isPermanentlyDenied) {
-      // Permission permanently denied
-      if (mounted) {
-        setState(() {});
-      }
-    } else {
-      // Permission temporarily denied
-      if (mounted) {
-        setState(() {});
-      }
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed &&
+        ref.read(navigationIndexProvider) == 2) {
+      _activateScanner();
+    } else if (state == AppLifecycleState.paused) {
+      _deactivateScanner();
     }
   }
 
-  // ── QR Parser ─────────────────────────────────────────────────────────────
-  //
-  // Expected format: "SF|{name}|{dd/MM/yyyy/HH/mm/ss}|{uid}"
-  //   parts[0] = "SF"  ← SmartFresh prefix (rejects foreign QR codes)
-  //   parts[1] = name
-  //   parts[2] = date  (dd/MM/yyyy/HH/mm/ss)
-  //   parts[3] = uid   (20-char alphanumeric)
-  //
-  // Example: "SF|yayout|21/05/2025/23/22/11|FCV45T3QAWSWDEDEDEDE"
-
+  // ── QR Detection avec blocage ─────────────────────────────────────────
   void _onDetected(BarcodeCapture capture) {
-    // Placeholder for QR detection logic
+    // Bloque si un sheet est déjà affiché ou en période de cooldown
+    if (_isSheetOpen || _cooldown) return;
+
+    final barcode = capture.barcodes.firstOrNull;
+    if (barcode == null) return;
+
+    final raw = barcode.rawValue ?? '';
+    final parts = raw.split('|');
+    if (parts.length != 4 || parts[0] != 'SF') {
+      _showResultSheet(
+        name: raw,
+        expired: DateTime.now(),
+        uid: 'UNKNOWN',
+        isValidFormat: false,
+      );
+      return;
+    }
+
+    final name = parts[1];
+    final expiryParts = parts[2].split('/');
+    DateTime expired = DateTime.now();
+    try {
+      if (expiryParts.length >= 6) {
+        expired = DateTime(
+          int.parse(expiryParts[2]),
+          int.parse(expiryParts[1]),
+          int.parse(expiryParts[0]),
+          int.parse(expiryParts[3]),
+          int.parse(expiryParts[4]),
+          int.parse(expiryParts[5]),
+        );
+      }
+    } catch (_) {}
+
+    final uid = parts[3];
+    _showResultSheet(
+      name: name,
+      expired: expired,
+      uid: uid,
+      isValidFormat: true,
+    );
   }
 
-  // ── Realtime Database duplicate check ─────────────────────────────────────
-  //
-  // Checks all 4 zone paths for the given UID.
-  // Returns the zone name if found, null if not found.
-
-
-  // ── Build ─────────────────────────────────────────────────────────────────
+  Future<void> _showResultSheet({
+    required String name,
+    required DateTime expired,
+    required String uid,
+    bool isValidFormat = true,
+  }) async {
+    _isSheetOpen = true;  // ← bloque les nouvelles détections
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (_) => _QrResultSheet(
+        name: name,
+        expired: expired,
+        uid: uid,
+        isValidFormat: isValidFormat,
+        existingZone: null,
+        onAdd: (zoneName) async {
+          await saveProductToZone(
+            name: name,
+            expired: expired,
+            uid: uid,
+            zoneName: zoneName,
+          );
+        },
+      ),
+    );
+    // Le bottom sheet est fermé
+    _isSheetOpen = false;
+    // Active un cooldown de 2 secondes
+    _cooldown = true;
+    Timer(const Duration(seconds: 2), () {
+      if (mounted) setState(() => _cooldown = false);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -103,9 +228,50 @@ class _ScanPageState extends State<ScanPage>
         centerTitle: true,
       ),
       body: _isMobile
-          ? MobileScanner(
-              controller: _scanner,
-              onDetect: _onDetected,
+          ? Stack(
+              children: [
+                MobileScanner(
+                  controller: _scanner,
+                  onDetect: _onDetected,
+                ),
+                if (!_isScannerReady)
+                  const Center(child: CircularProgressIndicator()),
+                Center(
+                  child: Container(
+                    width: 250,
+                    height: 250,
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.8),
+                        width: 3,
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                  ),
+                ),
+                if (_isScannerReady)
+                  Positioned(
+                    bottom: 40,
+                    left: 0,
+                    right: 0,
+                    child: Text(
+                      'pointCamera'.tr(),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        shadows: [
+                          Shadow(
+                            blurRadius: 10.0,
+                            color: Colors.black,
+                            offset: Offset(2.0, 2.0),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
             )
           : Center(
               child: Text('cameraNotSupported'.tr()),
@@ -113,52 +279,23 @@ class _ScanPageState extends State<ScanPage>
     );
   }
 }
-// ── Scan Overlay ──────────────────────────────────────────────────────────────
 
+// ════════════════════════════════════════════════════════════════════════════
+//  Reprendre ici TOUS les widgets du bottom sheet (_QrResultSheet, _InfoTile, _ZoneChip)
+//  qui sont déjà dans les réponses précédentes. Ils restent inchangés.
+// ════════════════════════════════════════════════════════════════════════════
 
+// ════════════════════════════════════════════════════════════════════════════
+//  Bottom sheet et ses sous‑widgets (inchangés, avec traduction)
+//  (Assurez-vous d'avoir copié les classes _QrResultSheet, _InfoTile, _ZoneChip
+//   depuis la réponse précédente, elles sont inchangées)
+// ════════════════════════════════════════════════════════════════════════════
 
-// ── Corner Bracket Painter ────────────────────────────────────────────────────
-
-// ignore: unused_element
-class _CornerPainter extends CustomPainter {
-  const _CornerPainter({required this.color});
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 3.5
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-
-    const len = 30.0;
-
-    canvas.drawLine(const Offset(0, len), const Offset(0, 0), paint);
-    canvas.drawLine(const Offset(0, 0), const Offset(len, 0), paint);
-    canvas.drawLine(
-        Offset(size.width - len, 0), Offset(size.width, 0), paint);
-    canvas.drawLine(
-        Offset(size.width, 0), Offset(size.width, len), paint);
-    canvas.drawLine(
-        Offset(0, size.height - len), Offset(0, size.height), paint);
-    canvas.drawLine(
-        Offset(0, size.height), Offset(len, size.height), paint);
-    canvas.drawLine(
-        Offset(size.width - len, size.height),
-        Offset(size.width, size.height),
-        paint);
-    canvas.drawLine(
-        Offset(size.width, size.height - len),
-        Offset(size.width, size.height),
-        paint);
-  }
-
-  @override
-  bool shouldRepaint(_) => false;
-}
+// ── QR Result Bottom Sheet (identique à la version précédente) ─────────
+// ... (copiez ici la classe _QrResultSheet et ses sous-classes déjà fournies)
 
 // ── QR Result Bottom Sheet ────────────────────────────────────────────────────
+// (Modifié pour utiliser les traductions)
 
 class _QrResultSheet extends StatefulWidget {
   const _QrResultSheet({
@@ -166,7 +303,7 @@ class _QrResultSheet extends StatefulWidget {
     required this.expired,
     required this.uid,
     required this.isValidFormat,
-    required this.existingZone, // null = new, 'zone1'/'zone2'/etc = duplicate
+    required this.existingZone,
     required this.onAdd,
   });
 
@@ -199,13 +336,13 @@ class _QrResultSheetState extends State<_QrResultSheet> {
   String _zoneDisplayName(String zone) {
     switch (zone) {
       case 'zone1':
-        return 'Zone 1';
+        return 'zone1'.tr();
       case 'zone2':
-        return 'Zone 2';
+        return 'zone2'.tr();
       case 'zone3':
-        return 'Zone 3';
+        return 'zone3'.tr();
       case 'pirimi':
-        return 'Périmés';
+        return 'pirimi'.tr();
       default:
         return zone;
     }
@@ -245,7 +382,7 @@ class _QrResultSheetState extends State<_QrResultSheet> {
                 color: Colors.white, size: 18),
             const SizedBox(width: 8),
             Text('addedToZone'.tr(args: [
-              _selectedZone == 'zone1' ? 'Zone 1' : 'Zone 2'
+              _selectedZone == 'zone1' ? 'zone1'.tr() : 'zone2'.tr()
             ])),
           ]),
           backgroundColor: ColorPalette.success,
@@ -294,7 +431,6 @@ class _QrResultSheetState extends State<_QrResultSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Drag handle ──
             Center(
               child: Container(
                 width: 40,
@@ -306,8 +442,6 @@ class _QrResultSheetState extends State<_QrResultSheet> {
               ),
             ),
             const SizedBox(height: 20),
-
-            // ── Header ──
             Row(
               children: [
                 Container(
@@ -342,7 +476,7 @@ class _QrResultSheetState extends State<_QrResultSheet> {
                     children: [
                       Text(
                         isDuplicate
-                            ? 'Produit déjà enregistré'
+                            ? 'productAlreadyExists'.tr()
                             : 'barcodeDetected'.tr(),
                         style: Theme.of(context)
                             .textTheme
@@ -351,7 +485,8 @@ class _QrResultSheetState extends State<_QrResultSheet> {
                       ),
                       Text(
                         isDuplicate
-                            ? 'Déjà dans ${_zoneDisplayName(widget.existingZone!)}'
+                            ? 'alreadyInZone'
+                                .tr(args: [_zoneDisplayName(widget.existingZone!)])
                             : widget.isValidFormat
                                 ? 'validFormat'.tr()
                                 : 'unknownFormat'.tr(),
@@ -374,8 +509,6 @@ class _QrResultSheetState extends State<_QrResultSheet> {
                 ),
               ],
             ),
-
-            // ── Duplicate warning banner ──
             if (isDuplicate) ...[
               const SizedBox(height: 12),
               Container(
@@ -394,8 +527,8 @@ class _QrResultSheetState extends State<_QrResultSheet> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'Ce produit existe déjà dans ${_zoneDisplayName(widget.existingZone!)}. '
-                        'Vous pouvez quand même l\'ajouter dans une autre zone.',
+                        'productDuplicateDesc'
+                            .tr(args: [_zoneDisplayName(widget.existingZone!)]),
                         style: TextStyle(
                           color: ColorPalette.warning,
                           fontSize: 12,
@@ -407,12 +540,9 @@ class _QrResultSheetState extends State<_QrResultSheet> {
                 ),
               ),
             ],
-
             const SizedBox(height: 16),
             const Divider(),
             const SizedBox(height: 12),
-
-            // ── Product details ──
             _InfoTile(
               icon: Icons.inventory_2_rounded,
               label: 'productName'.tr(),
@@ -436,10 +566,7 @@ class _QrResultSheetState extends State<_QrResultSheet> {
               valueColor:
                   widget.uid == 'UNKNOWN' ? ColorPalette.danger : null,
             ),
-
             const SizedBox(height: 20),
-
-            // ── Zone selector (zone1 and zone2 only) ──
             Text(
               'selectZone'.tr(),
               style: Theme.of(context)
@@ -451,32 +578,21 @@ class _QrResultSheetState extends State<_QrResultSheet> {
             Row(
               children: [
                 _ZoneChip(
-                  label: 'Zone 1',
+                  label: 'zone1'.tr(),
                   color: ColorPalette.success,
                   selected: _selectedZone == 'zone1',
-                  onTap: () {
-                    if (mounted) {
-                      setState(() => _selectedZone = 'zone1');
-                    }
-                  },
+                  onTap: () => setState(() => _selectedZone = 'zone1'),
                 ),
                 const SizedBox(width: 12),
                 _ZoneChip(
-                  label: 'Zone 2',
+                  label: 'zone2'.tr(),
                   color: ColorPalette.primary,
                   selected: _selectedZone == 'zone2',
-                  onTap: () {
-                    if (mounted) {
-                      setState(() => _selectedZone = 'zone2');
-                    }
-                  },
+                  onTap: () => setState(() => _selectedZone = 'zone2'),
                 ),
               ],
             ),
-
             const SizedBox(height: 24),
-
-            // ── Action buttons ──
             Row(
               children: [
                 Expanded(
@@ -562,8 +678,7 @@ class _QrResultSheetState extends State<_QrResultSheet> {
   }
 }
 
-// ── Helper Widgets ────────────────────────────────────────────────────────────
-
+// ── Helper Widgets (inchangés sauf les textes) ────────────────────────────────
 class _InfoTile extends StatelessWidget {
   const _InfoTile({
     required this.icon,
@@ -610,8 +725,8 @@ class _InfoTile extends StatelessWidget {
                 style: TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 13,
-                  color: valueColor ??
-                      Theme.of(context).colorScheme.onSurface,
+                  color:
+                      valueColor ?? Theme.of(context).colorScheme.onSurface,
                   fontFamily: isMonospace ? 'monospace' : null,
                   letterSpacing: isMonospace ? 0.5 : null,
                 ),

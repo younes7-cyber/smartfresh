@@ -1,6 +1,5 @@
 import 'dart:math';
 import 'dart:ui' as ui;
-
 import 'package:barcode_widget/barcode_widget.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -27,7 +26,6 @@ class _BarcodeGeneratorPageState extends State<BarcodeGeneratorPage> {
   final _uidController = TextEditingController();
   final _expiryController = TextEditingController();
 
-  // RepaintBoundary key — wraps ONLY the ticket widget
   final _ticketKey = GlobalKey();
 
   DateTime? _expiryDateTime;
@@ -48,22 +46,11 @@ class _BarcodeGeneratorPageState extends State<BarcodeGeneratorPage> {
     super.dispose();
   }
 
-  // ── UID: 20 chars A-Z + 0-9 ──────────────────────────────────────────────
-
   String _generateUid() {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     final random = Random.secure();
     return List.generate(20, (_) => chars[random.nextInt(chars.length)]).join();
   }
-
-  // ── QR data: JSON-like compact format ────────────────────────────────────
-  //
-  // Format: "SF|{name}|{dd/MM/yyyy/HH/mm/ss}|{uid}"
-  //
-  // Prefix "SF" = SmartFresh identifier to avoid scanning foreign QR codes.
-  // QR code handles any character including '|' natively.
-  //
-  // Example: "SF|yayout|21/05/2025/23/22/11|FCV45T3QAWSWDEDEDEDE"
 
   String get _formattedExpiry {
     if (_expiryDateTime == null) return '';
@@ -77,8 +64,6 @@ class _BarcodeGeneratorPageState extends State<BarcodeGeneratorPage> {
 
   String get _qrData =>
       'SF|${_nameController.text.trim()}|$_formattedExpiry|${_uidController.text}';
-
-  // ── Date + Time picker ───────────────────────────────────────────────────
 
   Future<void> _pickExpiryDateTime() async {
     final date = await showDatePicker(
@@ -103,8 +88,6 @@ class _BarcodeGeneratorPageState extends State<BarcodeGeneratorPage> {
     }
   }
 
-  // ── Generate ─────────────────────────────────────────────────────────────
-
   void _generate() {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     if (_expiryDateTime == null) {
@@ -116,12 +99,8 @@ class _BarcodeGeneratorPageState extends State<BarcodeGeneratorPage> {
       );
       return;
     }
-    if (mounted) {
-      setState(() => _generated = true);
-    }
+    if (mounted) setState(() => _generated = true);
   }
-
-  // ── Gallery permission ───────────────────────────────────────────────────
 
   Future<bool> _requestGalleryPermission() async {
     if (kIsWeb) return false;
@@ -139,8 +118,6 @@ class _BarcodeGeneratorPageState extends State<BarcodeGeneratorPage> {
     }
     return true;
   }
-
-  // ── Save ticket to gallery ────────────────────────────────────────────────
 
   Future<void> _saveTicketToGallery() async {
     if (!_generated) {
@@ -180,8 +157,7 @@ class _BarcodeGeneratorPageState extends State<BarcodeGeneratorPage> {
       final boundary = _ticketKey.currentContext!.findRenderObject()
           as RenderRepaintBoundary;
       final image = await boundary.toImage(pixelRatio: 3.0);
-      final byteData =
-          await image.toByteData(format: ui.ImageByteFormat.png);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
       final pngBytes = byteData!.buffer.asUint8List();
 
       await Gal.putImageBytes(
@@ -192,11 +168,11 @@ class _BarcodeGeneratorPageState extends State<BarcodeGeneratorPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Row(
+          content: Row(
             children: [
-              Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
-              SizedBox(width: 8),
-              Text('✅ Ticket saved to gallery!'),
+              const Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
+              const SizedBox(width: 8),
+              Text('ticketSaved'.tr()),
             ],
           ),
           backgroundColor: ColorPalette.success,
@@ -209,7 +185,7 @@ class _BarcodeGeneratorPageState extends State<BarcodeGeneratorPage> {
       if (!mounted) return;
       final msg = e.type == GalExceptionType.accessDenied
           ? 'permissionDenied'.tr()
-          : '❌ Failed to save ticket.';
+          : 'ticketSaveError'.tr();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(msg),
@@ -223,7 +199,7 @@ class _BarcodeGeneratorPageState extends State<BarcodeGeneratorPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('❌ Failed to save ticket.'),
+          content: Text('ticketSaveError'.tr()),
           backgroundColor: ColorPalette.danger,
           behavior: SnackBarBehavior.floating,
           shape:
@@ -234,8 +210,6 @@ class _BarcodeGeneratorPageState extends State<BarcodeGeneratorPage> {
       if (mounted) setState(() => _saving = false);
     }
   }
-
-  // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -250,7 +224,6 @@ class _BarcodeGeneratorPageState extends State<BarcodeGeneratorPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // ── Product name ──
               AppTextField(
                 controller: _nameController,
                 label: 'productName'.tr(),
@@ -258,8 +231,6 @@ class _BarcodeGeneratorPageState extends State<BarcodeGeneratorPage> {
                     (v == null || v.trim().isEmpty) ? 'requiredField'.tr() : null,
               ),
               const SizedBox(height: 12),
-
-              // ── Expiry date ──
               AppTextField(
                 controller: _expiryController,
                 label: 'expiryDate'.tr(),
@@ -273,20 +244,18 @@ class _BarcodeGeneratorPageState extends State<BarcodeGeneratorPage> {
                     _expiryDateTime == null ? 'requiredField'.tr() : null,
               ),
               const SizedBox(height: 12),
-
-              // ── UID ──
               Row(
                 children: [
                   Expanded(
                     child: AppTextField(
                       controller: _uidController,
-                      label: 'UID',
+                      label: 'uid'.tr(),
                       enabled: false,
                     ),
                   ),
                   const SizedBox(width: 8),
                   Tooltip(
-                    message: 'Regenerate UID',
+                    message: 'regenerate'.tr(),
                     child: IconButton(
                       onPressed: () => setState(() {
                         _uidController.text = _generateUid();
@@ -299,17 +268,12 @@ class _BarcodeGeneratorPageState extends State<BarcodeGeneratorPage> {
                 ],
               ),
               const SizedBox(height: 16),
-
-              // ── Generate Button ──
               AppButton(
                 label: 'generate'.tr(),
                 icon: Icons.qr_code_2_rounded,
                 onPressed: _generate,
               ),
-
               const SizedBox(height: 20),
-
-              // ── Ticket Preview ──
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 400),
                 transitionBuilder: (child, animation) => FadeTransition(
@@ -335,7 +299,6 @@ class _BarcodeGeneratorPageState extends State<BarcodeGeneratorPage> {
                       )
                     : const SizedBox.shrink(),
               ),
-
               if (_generated) ...[
                 const SizedBox(height: 16),
                 AppButton(
@@ -353,8 +316,7 @@ class _BarcodeGeneratorPageState extends State<BarcodeGeneratorPage> {
   }
 }
 
-// ── Ticket Card Widget ────────────────────────────────────────────────────────
-
+// ── Ticket Card Widget (textes traduits) ─────────────────────────────────────
 class _TicketCard extends StatelessWidget {
   const _TicketCard({
     required this.name,
@@ -396,19 +358,16 @@ class _TicketCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: 10),
-
-          // ── Product info + QR code side by side ──
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Info column
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _InfoRow(
                       icon: Icons.inventory_2_rounded,
-                      label: 'Product',
+                      label: 'productName'.tr(),
                       value: name,
                       textColor: textColor,
                       subtitleColor: subtitleColor,
@@ -416,7 +375,7 @@ class _TicketCard extends StatelessWidget {
                     const SizedBox(height: 8),
                     _InfoRow(
                       icon: Icons.event_rounded,
-                      label: 'Expiry',
+                      label: 'expiryDate'.tr(),
                       value: displayExpiry,
                       textColor: textColor,
                       subtitleColor: subtitleColor,
@@ -434,12 +393,10 @@ class _TicketCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 16),
-
-              // ── QR Code — larger, high contrast, easy to scan ──
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.white, // always white bg for QR
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: ColorPalette.primary.withValues(alpha: 0.3),
@@ -453,7 +410,7 @@ class _TicketCard extends StatelessWidget {
                   width: 110,
                   height: 110,
                   drawText: false,
-                  color: Colors.black, // always black on white
+                  color: Colors.black,
                   backgroundColor: Colors.white,
                   errorBuilder: (context, error) => Center(
                     child: Text('QR error: $error',

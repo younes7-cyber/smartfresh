@@ -73,7 +73,7 @@
   "noExpiredProductsDesc": "Tous les produits de votre réfrigérateur sont frais !",
   "expiredProductsCount": "produits périmés",
   "openExpiredBox": "Ouvrir la boîte des périmés",
-  "enterPin": "Entrez le code à 4 chiffres",
+  "enterPin": "Entrez le code",
   "enterPinDesc": "Veuillez entrer le code de sécurité",
   "incorrectCode": "Code incorrect",
   "boxOpened": "Boîte ouverte",
@@ -127,5 +127,14 @@
   "waitingVerification": "En attente de vérification...",
   "dark": "Sombre",
   "light": "Clair",
-  "noNotifications": "Aucune notification"
+  "noNotifications": "Aucune notification",
+  "totalProductsSubtitle": "Z1 + Z2 + Z3",
+  "freshProductsSubtitle": "Zone 1 + 2",
+  "expiringSoonSubtitle": "Zone 3",
+  "expiredSubtitle": "Périmés",
+  "productAlreadyExists": "Produit déjà enregistré",
+  "alreadyInZone": "Déjà dans {zone}",
+  "productDuplicateDesc": "Ce produit existe déjà dans {zone}. Vous pouvez quand même l'ajouter dans une autre zone.",
+  "ticketSaved": "✅ Ticket enregistré dans la galerie !",
+  "ticketSaveError": "❌ Échec de l'enregistrement du ticket"
 }

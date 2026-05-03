@@ -2,7 +2,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:smartfresh/service/firestore%20provider.dart';
+import 'package:smartfresh/service/firestore provider.dart';
 
 import '../../core/theme/color_palette.dart';
 
@@ -11,13 +11,12 @@ class DashboardPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // All are StreamProviders — they carry loading/error/data state
     final totalAsync = ref.watch(totalProductsProvider);
     final freshAsync = ref.watch(freshProductsProvider);
     final expiringSoonAsync = ref.watch(expiringSoonCountProvider);
     final expiredAsync = ref.watch(expiredCountProvider);
     final statsAsync = ref.watch(annualStatsProvider);
-
+final isDark = Theme.of(context).brightness == Brightness.dark;
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -26,8 +25,6 @@ class DashboardPage extends ConsumerWidget {
         padding: const EdgeInsets.all(16),
         children: [
           const SizedBox(height: 16),
-
-          // ── Summary cards grid ──
           LayoutBuilder(builder: (context, constraints) {
             final columns = constraints.maxWidth >= 900 ? 4 : 2;
             final cards = [
@@ -36,28 +33,28 @@ class DashboardPage extends ConsumerWidget {
                 asyncValue: totalAsync,
                 icon: Icons.inventory_2_rounded,
                 color: ColorPalette.primary,
-                subtitle: 'Z1 + Z2 + Z3',
+                subtitle: 'totalProductsSubtitle'.tr(),
               ),
               _StatCard(
                 title: 'freshProducts'.tr(),
                 asyncValue: freshAsync,
                 icon: Icons.eco_rounded,
                 color: ColorPalette.success,
-                subtitle: 'Zone 1 + 2',
+                subtitle: 'freshProductsSubtitle'.tr(),
               ),
               _StatCard(
                 title: 'expiringSoon'.tr(),
                 asyncValue: expiringSoonAsync,
                 icon: Icons.hourglass_bottom_rounded,
                 color: ColorPalette.warning,
-                subtitle: 'Zone 3',
+                subtitle: 'expiringSoonSubtitle'.tr(),
               ),
               _StatCard(
                 title: 'expired'.tr(),
                 asyncValue: expiredAsync,
                 icon: Icons.dangerous_rounded,
                 color: ColorPalette.danger,
-                subtitle: 'Périmi',
+                subtitle: 'expiredSubtitle'.tr(),
               ),
             ];
 
@@ -74,16 +71,13 @@ class DashboardPage extends ConsumerWidget {
               itemBuilder: (_, i) => cards[i],
             );
           }),
-
           const SizedBox(height: 24),
-
-          // ── Annual chart header ──
           Row(
             children: [
               Text(
                 'annualStatistics'.tr(),
-                style: theme.textTheme.titleLarge
-                    ?.copyWith(fontWeight: FontWeight.w700),
+                style:TextStyle(fontWeight: FontWeight.w700,color:isDark ? Colors.white : Colors.black,),
+                    
               ),
               const Spacer(),
               Text(
@@ -94,12 +88,8 @@ class DashboardPage extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 8),
-
-          // ── Legend ──
           _ChartLegend(),
           const SizedBox(height: 12),
-
-          // ── Area chart — reads from annualStatsProvider (StreamProvider) ──
           statsAsync.when(
             loading: () => const SizedBox(
               height: 220,
@@ -115,7 +105,6 @@ class DashboardPage extends ConsumerWidget {
               ),
             ),
             data: (stats) {
-              // Find max value for dynamic Y axis
               double maxY = 5;
               for (final s in stats) {
                 maxY = [maxY, s.zone1, s.zone2, s.zone3, s.pirimi]
@@ -224,7 +213,6 @@ class DashboardPage extends ConsumerWidget {
               );
             },
           ),
-
           const SizedBox(height: 16),
         ],
       ),
@@ -257,8 +245,7 @@ class DashboardPage extends ConsumerWidget {
   }
 }
 
-// ── Stat Card — reads AsyncValue<int> from StreamProvider ────────────────────
-
+// ── Stat Card ──────────────────────────────────────────────────────────────────
 class _StatCard extends StatelessWidget {
   const _StatCard({
     required this.title,
@@ -278,7 +265,7 @@ class _StatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(7),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -296,8 +283,7 @@ class _StatCard extends StatelessWidget {
                 ),
                 const Spacer(),
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 7, vertical: 2),
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                   decoration: BoxDecoration(
                     color: color.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(999),
@@ -305,23 +291,16 @@ class _StatCard extends StatelessWidget {
                   child: Text(
                     subtitle,
                     style: TextStyle(
-                        color: color,
-                        fontSize: 9,
-                        fontWeight: FontWeight.w600),
+                        color: color, fontSize: 9, fontWeight: FontWeight.w600),
                   ),
                 ),
               ],
             ),
-
-            // Count — animated when value arrives from stream
             asyncValue.when(
               loading: () => SizedBox(
                 width: 24,
                 height: 24,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.5,
-                  color: color,
-                ),
+                child: CircularProgressIndicator(strokeWidth: 2.5, color: color),
               ),
               error: (_, __) => Text(
                 '—',
@@ -338,12 +317,10 @@ class _StatCard extends StatelessWidget {
                   style: Theme.of(context)
                       .textTheme
                       .headlineMedium
-                      ?.copyWith(
-                          fontWeight: FontWeight.w800, color: color),
+                      ?.copyWith(fontWeight: FontWeight.w800, color: color),
                 ),
               ),
             ),
-
             Text(
               title,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -360,65 +337,15 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-// ── Fridge Status Banner ──────────────────────────────────────────────────────
-
-
-class _PulsingDot extends StatefulWidget {
-  const _PulsingDot({required this.color});
-  final Color color;
-
-  @override
-  State<_PulsingDot> createState() => _PulsingDotState();
-}
-
-class _PulsingDotState extends State<_PulsingDot>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 900),
-  )..repeat(reverse: true);
-  late final Animation<double> _anim =
-      Tween<double>(begin: 0.4, end: 1.0).animate(_ctrl);
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: _anim,
-      child: Container(
-        width: 12,
-        height: 12,
-        decoration: BoxDecoration(
-          color: widget.color,
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: widget.color.withValues(alpha: 0.5),
-              blurRadius: 6,
-              spreadRadius: 1,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 // ── Chart Legend ──────────────────────────────────────────────────────────────
-
 class _ChartLegend extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    const items = [
-      (label: 'Zone 1', color: ColorPalette.success),
-      (label: 'Zone 2', color: ColorPalette.primary),
-      (label: 'Zone 3', color: ColorPalette.warning),
-      (label: 'Périmi', color: ColorPalette.danger),
+    final List<_LegendItem> items = [
+      _LegendItem(label: 'zone1'.tr(), color: ColorPalette.success),
+      _LegendItem(label: 'zone2'.tr(), color: ColorPalette.primary),
+      _LegendItem(label: 'zone3'.tr(), color: ColorPalette.warning),
+      _LegendItem(label: 'pirimi'.tr(), color: ColorPalette.danger),
     ];
     return Wrap(
       spacing: 16,
@@ -448,4 +375,10 @@ class _ChartLegend extends StatelessWidget {
           .toList(),
     );
   }
+}
+
+class _LegendItem {
+  final String label;
+  final Color color;
+  _LegendItem({required this.label, required this.color});
 }
